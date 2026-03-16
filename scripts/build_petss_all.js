@@ -1,47 +1,36 @@
 #!/usr/bin/env node
 
 /**
- * Build PETSS mean storm-tide TWL forecasts for all stations in the East region.
+ * Build PETSS TWL forecasts from NOMADS csv.tar.gz products.
+ *
+ * Why this version:
+ * - The *.mean.stormtide.east.txt product is NOT a CSV table.
+ * - The directory also publishes petss.tXXz.csv.tar.gz.
+ * - We extract CSVs, locate files/rows containing TIME + TWL, and parse them robustly.
  *
  * Output:
  *   data/petss_forecasts_all_mllw.json
- *
- * What this script does:
- *   - fetches the latest available PETSS MEAN storm-tide text product
- *   - parses station blocks robustly
- *   - reads ONLY:
- *       column 0 = TIME (YYYYMMDDHHMM)
- *       column 5 = TWL
- *   - drops malformed times
- *   - drops 9999.000 missing values
- *   - drops absurd values outside a very wide sanity range
- *
- * This is designed specifically to prevent bad parses like:
- *   2026-18-13T07:00:00Z
- *   fcst: 32
  */
 
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
+const https = require("https");
+const { execFileSync } = require("child_process");
 
 const OUT_PATH = path.join(__dirname, "..", "data", "petss_forecasts_all_mllw.json");
 
-const PRODUCT_REGION = "east";
-const PRODUCT_NAME = "mean"; // IMPORTANT: use ensemble mean, not e90/e10
-const PRODUCT_KIND = "stormtide";
 const BASE_URL = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod";
+const REGION = "east";
+const FETCH_TIMEOUT_MS = 30000;
+const RETRIES = 3;
 
-const FETCH_TIMEOUT_MS = 25000;
-const FETCH_RETRIES = 3;
-const RETRY_WAIT_MS = 2500;
-
-// Wide sanity bounds for East Coast TWL in feet MLLW.
-// These are only a last-resort guard against bad parsing.
-const MIN_REASONABLE_TWL_FT = -20;
-const MAX_REASONABLE_TWL_FT = 25;
+// broad sanity limits, just to block corrupted parses
+const MIN_TWL_FT = -20;
+const MAX_TWL_FT = 25;
 
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise(r => setTimeout(r, ms));
 }
 
 function utcDateString(d) {
@@ -59,13 +48,11 @@ function isoFromCycle(dateStr, cycle) {
   return new Date(Date.UTC(y, m - 1, d, h, 0, 0)).toISOString();
 }
 
-function buildUrl(dateStr, cycle) {
-  return `${BASE_URL}/petss.${dateStr}/petss.t${cycle}z.${PRODUCT_NAME}.${PRODUCT_KIND}.${PRODUCT_REGION}.txt`;
-}
-
 function buildCandidateRuns() {
   const now = new Date();
-  const days = [];
+  const cycles = ["18", "12", "06", "00"];
+  const out = [];
+
   for (let back = 0; back <= 2; back++) {
     const d = new Date(Date.UTC(
       now.getUTCFullYear(),
@@ -73,121 +60,181 @@ function buildCandidateRuns() {
       now.getUTCDate() - back,
       0, 0, 0
     ));
-    days.push(utcDateString(d));
-  }
+    const dateStr = utcDateString(d);
 
-  const cycles = ["18", "12", "06", "00"];
-  const out = [];
-  for (const day of days) {
     for (const cycle of cycles) {
       out.push({
-        dateStr: day,
+        dateStr,
         cycle,
-        url: buildUrl(day, cycle)
+        csvTarUrl: `${BASE_URL}/petss.${dateStr}/petss.t${cycle}z.csv.tar.gz`,
+        txtUrl: `${BASE_URL}/petss.${dateStr}/petss.t${cycle}z.mean.stormtide.${REGION}.txt`
       });
     }
+  }
+
+  return out;
+}
+
+function downloadToFile(url, outPath, timeoutMs = FETCH_TIMEOUT_MS) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      url,
+      { headers: { "User-Agent": "petss-builder/2.0" } },
+      (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+          return;
+        }
+
+        const file = fs.createWriteStream(outPath);
+        res.pipe(file);
+
+        file.on("finish", () => {
+          file.close(() => resolve());
+        });
+
+        file.on("error", (err) => {
+          try { fs.unlinkSync(outPath); } catch {}
+          reject(err);
+        });
+      }
+    );
+
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Timeout fetching ${url}`));
+    });
+
+    req.on("error", reject);
+  });
+}
+
+async function downloadWithRetry(url, outPath) {
+  let lastErr = null;
+  for (let i = 1; i <= RETRIES; i++) {
+    try {
+      await downloadToFile(url, outPath);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (i < RETRIES) {
+        console.warn(`Download failed (${i}/${RETRIES}) for ${url}: ${err.message}`);
+        await sleep(1500 * i);
+      }
+    }
+  }
+  throw lastErr;
+}
+
+function fileExistsAndNonEmpty(p) {
+  try {
+    const st = fs.statSync(p);
+    return st.isFile() && st.size > 0;
+  } catch {
+    return false;
+  }
+}
+
+function walkFiles(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...walkFiles(p));
+    else if (entry.isFile()) out.push(p);
   }
   return out;
 }
 
-async function fetchText(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+function splitCsvLine(line) {
+  // basic CSV splitter with quote handling
+  const out = [];
+  let cur = "";
+  let inQuotes = false;
 
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": "petss-builder/1.0"
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
       }
-    });
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} ${res.statusText}`);
+      continue;
     }
 
-    return await res.text();
-  } finally {
-    clearTimeout(timer);
+    if (ch === "," && !inQuotes) {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+
+    cur += ch;
   }
+
+  out.push(cur);
+  return out.map(s => s.trim());
 }
 
-async function fetchTextWithRetry(url) {
-  let lastErr = null;
-
-  for (let attempt = 1; attempt <= FETCH_RETRIES; attempt++) {
-    try {
-      return await fetchText(url);
-    } catch (err) {
-      lastErr = err;
-      if (attempt < FETCH_RETRIES) {
-        console.warn(`Fetch failed (${attempt}/${FETCH_RETRIES}) for ${url}: ${err.message}`);
-        await sleep(RETRY_WAIT_MS * attempt);
-      }
-    }
-  }
-
-  throw lastErr;
+function detectDelimiter(line) {
+  if (line.includes(",")) return ",";
+  if (line.includes("\t")) return "\t";
+  return ",";
 }
 
-async function fetchLatestAvailableProduct() {
-  const candidates = buildCandidateRuns();
+function splitLine(line, delimiter) {
+  if (delimiter === ",") return splitCsvLine(line);
+  return line.split("\t").map(s => s.trim());
+}
 
-  for (const c of candidates) {
-    try {
-      console.log(`Trying ${c.url}`);
-      const text = await fetchTextWithRetry(c.url);
+function normalizeHeaderName(s) {
+  return String(s || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9]/g, "");
+}
 
-      if (typeof text === "string" && text.includes("TIME") && text.includes("TWL")) {
-        return {
-          dateStr: c.dateStr,
-          cycle: c.cycle,
-          url: c.url,
-          text
-        };
-      }
-    } catch (err) {
-      console.warn(`Skipping ${c.url}: ${err.message}`);
-    }
+function findHeaderIndex(headers, options) {
+  const normalized = headers.map(normalizeHeaderName);
+  for (const opt of options) {
+    const want = normalizeHeaderName(opt);
+    const idx = normalized.indexOf(want);
+    if (idx >= 0) return idx;
   }
-
-  throw new Error("Could not fetch any recent PETSS mean storm-tide text product.");
+  return -1;
 }
 
 function parsePetssTimeUTC(raw) {
   const s = String(raw || "").trim();
-  if (!/^\d{12}$/.test(s)) return null;
 
-  const year = Number(s.slice(0, 4));
-  const month = Number(s.slice(4, 6));
-  const day = Number(s.slice(6, 8));
-  const hour = Number(s.slice(8, 10));
-  const minute = Number(s.slice(10, 12));
+  if (/^\d{12}$/.test(s)) {
+    const year = Number(s.slice(0, 4));
+    const month = Number(s.slice(4, 6));
+    const day = Number(s.slice(6, 8));
+    const hour = Number(s.slice(8, 10));
+    const minute = Number(s.slice(10, 12));
 
-  if (
-    month < 1 || month > 12 ||
-    day < 1 || day > 31 ||
-    hour < 0 || hour > 23 ||
-    minute < 0 || minute > 59
-  ) {
+    const ms = Date.UTC(year, month - 1, day, hour, minute, 0);
+    const d = new Date(ms);
+
+    if (
+      d.getUTCFullYear() === year &&
+      d.getUTCMonth() === month - 1 &&
+      d.getUTCDate() === day &&
+      d.getUTCHours() === hour &&
+      d.getUTCMinutes() === minute
+    ) {
+      return d.toISOString();
+    }
     return null;
   }
 
-  const ms = Date.UTC(year, month - 1, day, hour, minute, 0);
-  const d = new Date(ms);
-
-  // strict validation to reject impossible dates
-  if (
-    d.getUTCFullYear() !== year ||
-    d.getUTCMonth() !== month - 1 ||
-    d.getUTCDate() !== day ||
-    d.getUTCHours() !== hour ||
-    d.getUTCMinutes() !== minute
-  ) {
-    return null;
-  }
-
-  return d.toISOString();
+  // fallback for values like 2026-03-11 12:00 or ISO strings
+  const isoLike = s.replace(" ", "T");
+  const d = new Date(isoLike.endsWith("Z") ? isoLike : `${isoLike}Z`);
+  return Number.isFinite(d.getTime()) ? d.toISOString() : null;
 }
 
 function parseMaybeNumber(raw) {
@@ -196,170 +243,193 @@ function parseMaybeNumber(raw) {
 
   const v = Number(s);
   if (!Number.isFinite(v)) return null;
+
+  // PETSS missing sentinels
   if (v === 9999 || v === 9999.0 || v === 9999.000) return null;
+  if (v === -400 || v === -400.0) return null;
 
   return v;
 }
 
 function isReasonableTwl(v) {
-  return Number.isFinite(v) && v >= MIN_REASONABLE_TWL_FT && v <= MAX_REASONABLE_TWL_FT;
+  return Number.isFinite(v) && v >= MIN_TWL_FT && v <= MAX_TWL_FT;
 }
 
-function detectStationId(line) {
-  const s = String(line || "").trim();
+function stationIdFromText(s) {
+  const m = String(s || "").match(/\b\d{7}\b/);
+  return m ? m[0] : null;
+}
 
-  // Avoid matching TIME rows
-  if (/^\d{12}\s*,/.test(s)) return null;
+function detectStationIdForFile(filePath, headers, row) {
+  const fileName = path.basename(filePath);
 
-  const patterns = [
-    /\b(?:station|stn|gage|gauge|site|nos)\s*[:#-]?\s*(\d{7})\b/i,
-    /^\s*(\d{7})\b/,
-    /\b(\d{7})\b/
+  const headerCandidates = [
+    "NOS_ID", "NOSID", "STATION", "STATION_ID", "STATIONID",
+    "SITE", "SITE_ID", "GAUGE", "GAUGE_ID", "ID"
   ];
 
-  for (const re of patterns) {
-    const m = s.match(re);
-    if (m) return m[1];
+  for (const name of headerCandidates) {
+    const idx = findHeaderIndex(headers, [name]);
+    if (idx >= 0 && idx < row.length) {
+      const sid = stationIdFromText(row[idx]);
+      if (sid) return sid;
+    }
   }
+
+  const fromFile = stationIdFromText(fileName);
+  if (fromFile) return fromFile;
 
   return null;
 }
 
-function isHeaderLine(line) {
-  const s = String(line || "").trim().toUpperCase();
-  return s.includes("TIME") && s.includes("TWL");
-}
+function parseCsvFileForPoints(filePath) {
+  const text = fs.readFileSync(filePath, "utf8").replace(/\r/g, "");
+  const lines = text.split("\n").filter(Boolean);
+  if (lines.length < 2) return null;
 
-function isDataLine(line) {
-  return /^\s*\d{12}\s*,/.test(String(line || ""));
-}
+  const delimiter = detectDelimiter(lines[0]);
+  const headers = splitLine(lines[0], delimiter);
 
-function parseDataRow(line) {
-  const cols = String(line)
-    .split(",")
-    .map(s => s.trim());
+  const timeIdx = findHeaderIndex(headers, ["TIME", "DATETIME", "VALIDTIME", "DATE_TIME", "T"]);
+  const twlIdx  = findHeaderIndex(headers, ["TWL", "STORMTIDE", "TOTALWATERLEVEL", "TOTAL_WATER_LEVEL"]);
 
-  // Expected:
-  // TIME,TIDE,OB,SURGE,BIAS,TWL,SURGE90p,TWL90p,SURGE10p,TWL10p
-  if (cols.length < 6) return null;
+  if (timeIdx < 0 || twlIdx < 0) return null;
 
-  const timeIso = parsePetssTimeUTC(cols[0]);
-  const twl = parseMaybeNumber(cols[5]);
+  const pointsByStation = new Map();
 
-  if (!timeIso) return null;
-  if (twl == null) return null;
-  if (!isReasonableTwl(twl)) return null;
+  for (let i = 1; i < lines.length; i++) {
+    const row = splitLine(lines[i], delimiter);
+    if (row.length <= Math.max(timeIdx, twlIdx)) continue;
 
-  return {
-    t: timeIso,
-    fcst: Math.round(twl * 1000) / 1000
-  };
-}
+    const t = parsePetssTimeUTC(row[timeIdx]);
+    const twl = parseMaybeNumber(row[twlIdx]);
 
-function parsePetssText(text) {
-  const lines = String(text || "")
-    .replace(/\r/g, "")
-    .split("\n");
+    if (!t || twl == null || !isReasonableTwl(twl)) continue;
 
-  const stations = {};
-  let currentStation = null;
-  let headerSeenForStation = false;
+    const sid = detectStationIdForFile(filePath, headers, row);
+    if (!sid) continue;
 
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line) continue;
-
-    const stationId = detectStationId(line);
-    if (stationId) {
-      currentStation = stationId;
-      headerSeenForStation = false;
-      if (!stations[currentStation]) {
-        stations[currentStation] = { points: [] };
-      }
-      continue;
-    }
-
-    if (isHeaderLine(line)) {
-      if (currentStation) {
-        headerSeenForStation = true;
-      }
-      continue;
-    }
-
-    if (!currentStation || !headerSeenForStation) continue;
-    if (!isDataLine(line)) continue;
-
-    const row = parseDataRow(line);
-    if (!row) continue;
-
-    stations[currentStation].points.push(row);
+    if (!pointsByStation.has(sid)) pointsByStation.set(sid, []);
+    pointsByStation.get(sid).push({
+      t,
+      fcst: Math.round(twl * 1000) / 1000
+    });
   }
 
-  // sort and dedupe
-  for (const id of Object.keys(stations)) {
-    const seen = new Set();
+  if (!pointsByStation.size) return null;
+  return pointsByStation;
+}
 
-    stations[id].points = stations[id].points
+function mergeStationMaps(maps) {
+  const stations = {};
+
+  for (const mp of maps) {
+    if (!mp) continue;
+
+    for (const [sid, pts] of mp.entries()) {
+      if (!stations[sid]) stations[sid] = { points: [] };
+      stations[sid].points.push(...pts);
+    }
+  }
+
+  for (const sid of Object.keys(stations)) {
+    const seen = new Set();
+    stations[sid].points = stations[sid].points
       .filter(p => p && p.t && Number.isFinite(p.fcst))
       .sort((a, b) => new Date(a.t).getTime() - new Date(b.t).getTime())
       .filter(p => {
-        const key = `${p.t}|${p.fcst}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
+        const k = `${p.t}|${p.fcst}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
         return true;
       });
 
-    if (!stations[id].points.length) {
-      delete stations[id];
-    }
+    if (!stations[sid].points.length) delete stations[sid];
   }
 
   return stations;
 }
 
-function buildOutput({ dateStr, cycle, url, stations }) {
+function buildOutput({ dateStr, cycle, csvTarUrl, stations }) {
   return {
     issued_utc: new Date().toISOString(),
     model_time_utc: isoFromCycle(dateStr, cycle),
-    source_url: url,
+    source_url: csvTarUrl,
     source_date_utc: dateStr,
     source_cycle_utc: cycle,
-    source_product: `${PRODUCT_NAME}.${PRODUCT_KIND}.${PRODUCT_REGION}.txt`,
+    source_product: `petss.t${cycle}z.csv.tar.gz`,
     datum: "MLLW",
     value_column: "TWL",
+    region: REGION,
     stations
   };
 }
 
+async function fetchLatestAvailableCsvRun() {
+  const candidates = buildCandidateRuns();
+
+  for (const c of candidates) {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "petss-"));
+    const tarPath = path.join(tmpDir, "petss.tar.gz");
+    const extractDir = path.join(tmpDir, "x");
+    fs.mkdirSync(extractDir);
+
+    try {
+      console.log(`Trying ${c.csvTarUrl}`);
+      await downloadWithRetry(c.csvTarUrl, tarPath);
+
+      if (!fileExistsAndNonEmpty(tarPath)) {
+        throw new Error("Downloaded archive is empty.");
+      }
+
+      execFileSync("tar", ["-xzf", tarPath, "-C", extractDir], { stdio: "pipe" });
+
+      const files = walkFiles(extractDir).filter(f => f.toLowerCase().endsWith(".csv"));
+      if (!files.length) {
+        throw new Error("Archive extracted but no CSV files were found.");
+      }
+
+      const parsedMaps = files.map(parseCsvFileForPoints).filter(Boolean);
+      const stations = mergeStationMaps(parsedMaps);
+
+      if (!Object.keys(stations).length) {
+        throw new Error("CSV archive found, but no station TIME/TWL rows were parsed.");
+      }
+
+      return {
+        dateStr: c.dateStr,
+        cycle: c.cycle,
+        csvTarUrl: c.csvTarUrl,
+        stations
+      };
+    } catch (err) {
+      console.warn(`Skipping ${c.csvTarUrl}: ${err.message}`);
+    } finally {
+      try {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      } catch {}
+    }
+  }
+
+  throw new Error("Could not fetch and parse any recent PETSS csv.tar.gz run.");
+}
+
 async function main() {
   try {
-    const run = await fetchLatestAvailableProduct();
-    const stations = parsePetssText(run.text);
-
-    const stationCount = Object.keys(stations).length;
-    if (!stationCount) {
-      throw new Error("Parsed zero stations from PETSS text product.");
-    }
-
-    const out = buildOutput({
-      dateStr: run.dateStr,
-      cycle: run.cycle,
-      url: run.url,
-      stations
-    });
+    const run = await fetchLatestAvailableCsvRun();
+    const out = buildOutput(run);
 
     fs.mkdirSync(path.dirname(OUT_PATH), { recursive: true });
     fs.writeFileSync(OUT_PATH, JSON.stringify(out, null, 2) + "\n", "utf8");
 
-    let pointCount = 0;
-    for (const id of Object.keys(stations)) {
-      pointCount += stations[id].points.length;
-    }
+    const stationCount = Object.keys(out.stations).length;
+    const pointCount = Object.values(out.stations)
+      .reduce((sum, s) => sum + (Array.isArray(s.points) ? s.points.length : 0), 0);
 
     console.log(`Wrote ${OUT_PATH}`);
     console.log(`Stations: ${stationCount}`);
     console.log(`Points: ${pointCount}`);
-    console.log(`Source: ${run.url}`);
+    console.log(`Source: ${run.csvTarUrl}`);
   } catch (err) {
     console.error(err);
     process.exit(1);
