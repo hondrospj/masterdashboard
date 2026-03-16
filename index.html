@@ -8,20 +8,22 @@
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
 
   <style>
     :root{
       --bg:#0b1220;
-      --card:#111a2e;
-      --card2:#0f172a;
+      --panel:#111a2e;
+      --panel2:#0f172a;
       --text:#eaf0ff;
       --muted:#9fb0d1;
       --line:rgba(255,255,255,.10);
       --ok:#2dd4bf;
-      --warn:#fbbf24;
-      --bad:#fb7185;
+      --minor:#fbbf24;
+      --moderate:#fb923c;
+      --major:#fb7185;
       --accent:#60a5fa;
       --shadow:0 18px 50px rgba(0,0,0,.35);
       --radius:18px;
@@ -29,222 +31,97 @@
 
     *{box-sizing:border-box}
     html,body{
-      margin:0;
-      padding:0;
-      background:var(--bg);
-      color:var(--text);
+      margin:0;padding:0;height:100%;
+      background:var(--bg);color:var(--text);
       font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
     }
 
-    .wrap{
-      width:min(96vw,1600px);
-      margin:0 auto;
-      padding:20px 16px 28px;
+    .app{
+      display:grid;
+      grid-template-columns: 390px 1fr;
+      height:100vh;
+      width:100vw;
     }
 
-    .top{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:16px;
-      flex-wrap:wrap;
-      margin-bottom:16px;
+    .sidebar{
+      background:linear-gradient(180deg, var(--panel), var(--panel2));
+      border-right:1px solid var(--line);
+      overflow:auto;
+      padding:18px 16px 18px;
     }
 
-    .titleBlock h1{
-      margin:0;
-      font-size:30px;
+    .title{
+      margin:0 0 6px;
+      font-size:28px;
       font-weight:900;
       letter-spacing:.2px;
     }
 
-    .titleBlock p{
-      margin:8px 0 0;
+    .subtitle{
+      margin:0 0 14px;
       color:var(--muted);
-      font-size:14px;
-      line-height:1.45;
-      max-width:1000px;
+      font-size:13px;
+      line-height:1.5;
     }
 
     .pillRow{
       display:flex;
-      gap:10px;
+      gap:8px;
       flex-wrap:wrap;
+      margin-bottom:14px;
     }
 
     .pill{
       border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      padding:10px 12px;
+      background:rgba(255,255,255,.05);
+      padding:8px 10px;
       border-radius:999px;
-      font-size:13px;
+      font-size:12px;
       font-weight:800;
-      box-shadow:var(--shadow);
     }
 
     .controls{
       display:grid;
-      grid-template-columns: 1.1fr .9fr .9fr auto;
-      gap:12px;
-      margin:0 0 16px;
+      gap:10px;
+      margin-bottom:14px;
     }
 
     .input,.select,.btn{
-      background:var(--card2);
+      width:100%;
+      background:rgba(255,255,255,.04);
       border:1px solid var(--line);
       color:var(--text);
-      padding:12px 14px;
       border-radius:14px;
+      padding:12px 13px;
       font-size:14px;
       font-weight:700;
       outline:none;
     }
 
-    .btn{cursor:pointer}
-    .btn:hover{filter:brightness(1.08)}
+    .btn{
+      cursor:pointer;
+      background:rgba(96,165,250,.14);
+      border-color:rgba(96,165,250,.3);
+    }
 
-    .summaryGrid{
+    .btn:hover{filter:brightness(1.06)}
+
+    .stats{
       display:grid;
-      grid-template-columns:repeat(4,1fr);
-      gap:14px;
-      margin-bottom:16px;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin-bottom:14px;
     }
 
-    .summary{
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      padding:16px;
-      box-shadow:var(--shadow);
-    }
-
-    .summary .k{
-      color:var(--muted);
-      font-size:12px;
-      font-weight:900;
-      text-transform:uppercase;
-      letter-spacing:.18px
-    }
-
-    .summary .v{
-      margin-top:10px;
-      font-size:30px;
-      font-weight:900
-    }
-
-    .panel{
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-      overflow:hidden;
-    }
-
-    .panelHead{
-      padding:16px 16px 12px;
-      border-bottom:1px solid var(--line);
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      gap:12px;
-      flex-wrap:wrap;
-    }
-
-    .panelHead h2{
-      margin:0;
-      font-size:13px;
-      color:var(--muted);
-      text-transform:uppercase;
-      letter-spacing:.2px;
-      font-weight:900;
-    }
-
-    #map{
-      width:100%;
-      height:72vh;
-      min-height:560px;
-      background:#0f172a;
-    }
-
-    .legend{
-      padding:12px 16px 16px;
-      color:var(--muted);
-      font-size:12.5px;
-      line-height:1.45;
-      border-top:1px solid var(--line);
-    }
-
-    .legendRow{
-      display:flex;
-      gap:12px;
-      flex-wrap:wrap;
-      margin-top:8px;
-    }
-
-    .chip{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:7px 10px;
-      border-radius:999px;
+    .stat{
       border:1px solid var(--line);
       background:rgba(255,255,255,.04);
-      font-size:12px;
-      font-weight:800;
-      color:var(--text);
-    }
-
-    .dot{
-      width:10px;
-      height:10px;
-      border-radius:999px;
-      display:inline-block;
-    }
-
-    .leaflet-popup-content-wrapper{
-      background:#0f172a;
-      color:var(--text);
-      border:1px solid rgba(255,255,255,.10);
       border-radius:16px;
-      box-shadow:0 18px 50px rgba(0,0,0,.45);
+      padding:12px;
+      box-shadow:var(--shadow);
     }
 
-    .leaflet-popup-tip{
-      background:#0f172a;
-    }
-
-    .popup{
-      min-width:280px;
-      max-width:340px;
-    }
-
-    .popup h3{
-      margin:0 0 6px;
-      font-size:16px;
-      line-height:1.25;
-    }
-
-    .popup .sub{
-      color:var(--muted);
-      font-size:12px;
-      margin-bottom:10px;
-    }
-
-    .popupGrid{
-      display:grid;
-      grid-template-columns:1fr;
-      gap:10px;
-      margin-top:10px;
-    }
-
-    .metric{
-      border:1px solid rgba(255,255,255,.08);
-      border-radius:12px;
-      padding:10px 11px;
-      background:rgba(255,255,255,.03);
-    }
-
-    .metric .label{
+    .stat .k{
       color:var(--muted);
       font-size:11px;
       text-transform:uppercase;
@@ -252,534 +129,1128 @@
       font-weight:900;
     }
 
-    .metric .value{
-      margin-top:6px;
-      font-size:22px;
+    .stat .v{
+      margin-top:8px;
+      font-size:24px;
       font-weight:900;
     }
 
-    .metric .time{
-      margin-top:5px;
+    .legend{
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      border-radius:16px;
+      padding:12px;
+      margin-bottom:14px;
+    }
+
+    .legend h3{
+      margin:0 0 10px;
       font-size:12px;
+      text-transform:uppercase;
       color:var(--muted);
-      line-height:1.35;
+      letter-spacing:.18px;
     }
 
-    .popup a{
-      display:inline-block;
-      margin-top:10px;
-      color:#93c5fd;
-      text-decoration:none;
+    .legendRow{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin:6px 0;
+      font-size:13px;
+    }
+
+    .swatch{
+      width:12px;height:12px;border-radius:999px;display:inline-block;
+      border:1px solid rgba(255,255,255,.25);
+    }
+
+    .gaugeList{
+      display:grid;
+      gap:10px;
+    }
+
+    .card{
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      border-radius:16px;
+      padding:12px;
+      cursor:pointer;
+      transition:transform .12s ease, background .12s ease;
+    }
+
+    .card:hover{
+      transform:translateY(-1px);
+      background:rgba(255,255,255,.06);
+    }
+
+    .card.active{
+      outline:2px solid rgba(96,165,250,.55);
+      background:rgba(96,165,250,.10);
+    }
+
+    .cardTitle{
+      font-size:14px;
+      font-weight:900;
+      line-height:1.25;
+    }
+
+    .cardSub{
+      color:var(--muted);
       font-size:12px;
-      font-weight:800;
+      margin-top:4px;
     }
 
-    @media (max-width:1100px){
-      .controls{grid-template-columns:1fr 1fr}
-      .summaryGrid{grid-template-columns:1fr 1fr}
+    .miniGrid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin-top:10px;
     }
 
-    @media (max-width:680px){
-      .controls{grid-template-columns:1fr}
-      .summaryGrid{grid-template-columns:1fr}
-      .titleBlock h1{font-size:25px}
-      #map{height:68vh;min-height:480px}
+    .mini{
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:8px;
+      background:rgba(0,0,0,.14);
+    }
+
+    .mini .k{
+      color:var(--muted);
+      font-size:10px;
+      text-transform:uppercase;
+      font-weight:900;
+      letter-spacing:.15px;
+    }
+
+    .mini .v{
+      margin-top:4px;
+      font-size:14px;
+      font-weight:900;
+    }
+
+    #map{
+      height:100%;
+      width:100%;
+      background:#0b1220;
+    }
+
+    .leaflet-popup-content-wrapper,
+    .leaflet-popup-tip{
+      background:#0f172a;
+      color:var(--text);
+      border:1px solid rgba(255,255,255,.10);
+    }
+
+    .popup{
+      min-width:260px;
+    }
+
+    .popup h3{
+      margin:0 0 6px;
+      font-size:16px;
+      line-height:1.2;
+    }
+
+    .popup .muted{
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:8px;
+    }
+
+    .popupGrid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+      margin-top:8px;
+    }
+
+    .popupBox{
+      background:rgba(255,255,255,.04);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      padding:8px;
+    }
+
+    .popupBox .k{
+      font-size:10px;
+      color:var(--muted);
+      text-transform:uppercase;
+      font-weight:900;
+      letter-spacing:.15px;
+    }
+
+    .popupBox .v{
+      font-size:14px;
+      font-weight:900;
+      margin-top:4px;
+    }
+
+    .statusTag{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      margin-top:10px;
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.04);
+      font-size:12px;
+      font-weight:900;
+    }
+
+    .footerNote{
+      margin-top:14px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+
+    @media (max-width: 980px){
+      .app{
+        grid-template-columns: 1fr;
+        grid-template-rows: 48vh 52vh;
+      }
+      .sidebar{
+        border-right:none;
+        border-bottom:1px solid var(--line);
+      }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <div class="titleBlock">
-        <h1>NJ Tide Gauge Map</h1>
-        <p>
-          Interactive map built from your worksheet gauge list only. Click any marker to see the
-          latest observed water level and the maximum PETSS forecast height over the next 72 hours,
-          each with time.
-        </p>
-      </div>
-      <div class="pillRow">
-        <div class="pill" id="lastUpdated">Last updated: —</div>
-        <div class="pill" id="statusPill">Loading…</div>
-      </div>
+<div class="app">
+  <aside class="sidebar">
+    <h1 class="title">NJ Tide Gauge Map</h1>
+    <p class="subtitle">
+      Click a marker or gauge card to see the <b>current water level</b> and the
+      <b>predicted maximum over the next 72 hours</b>. Live observations follow the source sheet:
+      <b>USGS sheet → USGS obs</b>, <b>NOAA sheet → NOAA obs</b>. Forecasts use the row’s
+      <b>PETSS Forecast ID</b>.
+    </p>
+
+    <div class="pillRow">
+      <div class="pill" id="lastUpdated">Last updated: —</div>
+      <div class="pill" id="statusPill">Loading…</div>
     </div>
 
     <div class="controls">
-      <input id="searchBox" class="input" type="text" placeholder="Search gauge, acronym, NOAA ID, USGS ID, PETSS ID…" />
+      <input id="searchBox" class="input" type="text" placeholder="Search gauge, acronym, or ID…" />
       <select id="sheetFilter" class="select">
-        <option value="ALL">All worksheet rows</option>
+        <option value="ALL">All workbook gauges</option>
         <option value="USGS">USGS sheet only</option>
         <option value="NOAA">NOAA sheet only</option>
       </select>
-      <select id="labelMode" class="select">
-        <option value="name">Popup title: gauge name</option>
-        <option value="acr">Popup title: acronym</option>
+      <select id="sortMode" class="select">
+        <option value="petss_desc">Sort by highest 72h max</option>
+        <option value="obs_desc">Sort by highest current obs</option>
+        <option value="name_asc">Sort A–Z</option>
       </select>
       <button id="refreshBtn" class="btn">Refresh</button>
     </div>
 
-    <div class="summaryGrid">
-      <div class="summary">
-        <div class="k">Worksheet gauges</div>
-        <div class="v" id="sumStations">—</div>
+    <div class="stats">
+      <div class="stat">
+        <div class="k">Workbook gauges</div>
+        <div class="v" id="statCount">—</div>
       </div>
-      <div class="summary">
-        <div class="k">USGS sheet rows</div>
-        <div class="v" id="sumUSGS">—</div>
-      </div>
-      <div class="summary">
-        <div class="k">NOAA sheet rows</div>
-        <div class="v" id="sumNOAA">—</div>
-      </div>
-      <div class="summary">
-        <div class="k">Highest 72h forecast</div>
-        <div class="v" id="sumTopForecast">—</div>
+      <div class="stat">
+        <div class="k">Highest 72h max</div>
+        <div class="v" id="statTop">—</div>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panelHead">
-        <h2>Interactive gauge map</h2>
-        <div id="visibleCount" style="color:var(--muted);font-size:12px;font-weight:800">—</div>
-      </div>
-      <div id="map"></div>
-      <div class="legend">
-        Marker color is based on the <b>72-hour forecast maximum</b>.
-        <div class="legendRow">
-          <span class="chip"><span class="dot" style="background:#2dd4bf"></span> Under 5.0 ft</span>
-          <span class="chip"><span class="dot" style="background:#fbbf24"></span> 5.0–7.99 ft</span>
-          <span class="chip"><span class="dot" style="background:#fb7185"></span> 8.0+ ft</span>
-          <span class="chip"><span class="dot" style="background:#94a3b8"></span> Missing forecast</span>
+    <div class="legend">
+      <h3>Marker color = 72h forecast stage</h3>
+      <div class="legendRow"><span class="swatch" style="background:#2dd4bf"></span> Below minor</div>
+      <div class="legendRow"><span class="swatch" style="background:#fbbf24"></span> Minor</div>
+      <div class="legendRow"><span class="swatch" style="background:#fb923c"></span> Moderate</div>
+      <div class="legendRow"><span class="swatch" style="background:#fb7185"></span> Major</div>
+      <div class="legendRow"><span class="swatch" style="background:#64748b"></span> Missing forecast</div>
+    </div>
+
+    <div id="gaugeList" class="gaugeList"></div>
+
+    <div class="footerNote">
+      This page expects PETSS JSON files in your repo’s <b>/data</b> folder, using filenames like
+      <b>petss_forecast_[PETSS_ID]_mllw.json</b>. Example: <b>data/petss_forecast_8536110_mllw.json</b>
+      or <b>data/petss_forecast_est0008_mllw.json</b>.
+    </div>
+  </aside>
+
+  <main id="map"></main>
+</div>
+
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+  crossorigin=""
+></script>
+
+<script>
+/* =========================
+   CONFIG
+========================= */
+const APP_NAME = "PJ_Tide_Gauge_Map";
+const NOAA_DATUM = "MLLW";
+const NOAA_UNITS = "english";
+const NOAA_TZ = "gmt";
+const USGS_PARAM = "72279";
+const REFRESH_MS = 5 * 60 * 1000;
+
+/* =========================
+   EXACT WORKBOOK GAUGES ONLY
+   Lat/lon added for mapping
+========================= */
+const GAUGES = [
+  // USGS sheet
+  {
+    sheet:"USGS",
+    name:"Cohancey River at Greenwich",
+    acronym:"GRWN4",
+    usgsId:"01413038",
+    noaaId:"8537374",
+    petssId:"8537374",
+    minor:7.2, moderate:8.2, major:9.2,
+    link:"https://hondrospj.github.io/Greenwich/",
+    lat:39.379167, lon:-75.355278
+  },
+  {
+    sheet:"USGS",
+    name:"Maurice River at Bivalve",
+    acronym:"BVVN4",
+    usgsId:null,
+    noaaId:"8535055",
+    petssId:"8536889",
+    minor:7.6, moderate:8.6, major:9.6,
+    link:"https://hondrospj.github.io/Bivalve/",
+    lat:39.232500, lon:-75.032778
+  },
+  {
+    sheet:"USGS",
+    name:"Sluice Creek at South Dennis",
+    acronym:"SDNN4",
+    usgsId:"01411435",
+    noaaId:"8536687",
+    petssId:"est0008",
+    minor:7.1, moderate:8.1, major:9.1,
+    link:"https://hondrospj.github.io/SouthDennis/",
+    lat:39.161667, lon:-74.832222
+  },
+  {
+    sheet:"USGS",
+    name:"Cape May Harbor at Cape May",
+    acronym:"CAPN4",
+    usgsId:"01411390",
+    noaaId:"8536110",
+    petssId:"8535901",
+    minor:6.2, moderate:7.2, major:8.2,
+    link:"https://hondrospj.github.io/CapeMayHarbor/",
+    lat:38.948333, lon:-74.888889
+  },
+  {
+    sheet:"USGS",
+    name:"Great Channel at Stone Harbor",
+    acronym:"SHBN4",
+    usgsId:null,
+    noaaId:"8535581",
+    petssId:"8535581",
+    minor:6.1, moderate:7.1, major:8.1,
+    link:"https://hondrospj.github.io/StoneHarbor/",
+    lat:39.056944, lon:-74.765000
+  },
+  {
+    sheet:"USGS",
+    name:"Ingram Thorofare at Avalon",
+    acronym:"AVLN4",
+    usgsId:"01411355",
+    noaaId:"8535419",
+    petssId:"8535419",
+    minor:6.0, moderate:7.0, major:8.0,
+    link:"https://hondrospj.github.io/Avalon/",
+    lat:39.108611, lon:-74.741944
+  },
+  {
+    sheet:"USGS",
+    name:"Ludlum Thorofare at Sea Isle",
+    acronym:"SICN4",
+    usgsId:"01411350",
+    noaaId:"8535221",
+    petssId:"8535221",
+    minor:5.7, moderate:6.7, major:7.7,
+    link:"https://hondrospj.github.io/SeaIsle/",
+    lat:39.157778, lon:-74.697778
+  },
+  {
+    sheet:"USGS",
+    name:"Great Egg Harbor Bay at Ocean City",
+    acronym:"ONCN4",
+    usgsId:"01411320",
+    noaaId:"8534975",
+    petssId:"8534975",
+    minor:5.3, moderate:6.3, major:7.3,
+    link:"https://hondrospj.github.io/OceanCity/",
+    lat:39.285833, lon:-74.575556
+  },
+  {
+    sheet:"USGS",
+    name:"Beach Thorofare at Margate",
+    acronym:"MGTN4",
+    usgsId:"01411330",
+    noaaId:"8534975",
+    petssId:"8534836",
+    minor:5.6, moderate:6.6, major:7.6,
+    link:"https://hondrospj.github.io/Margate/",
+    lat:39.337500, lon:-74.513056
+  },
+  {
+    sheet:"USGS",
+    name:"Inside Thorofare at Atlantic City",
+    acronym:"ALCN4",
+    usgsId:"01410560",
+    noaaId:"8534720",
+    petssId:"est4836",
+    minor:5.5, moderate:6.5, major:7.5,
+    link:"https://hondrospj.github.io/InsideThorofare/",
+    lat:39.353611, lon:-74.456944
+  },
+  {
+    sheet:"USGS",
+    name:"Absecon Channel at Atlantic City",
+    acronym:"ATLN4",
+    usgsId:"01410600",
+    noaaId:"8534720",
+    petssId:"8534638",
+    minor:5.6, moderate:6.6, major:7.6,
+    link:"https://hondrospj.github.io/AbseconChannel/",
+    lat:39.377778, lon:-74.423611
+  },
+  {
+    sheet:"USGS",
+    name:"Little Egg Inlet at Tuckerton",
+    acronym:"TKTN4",
+    usgsId:"01409335",
+    noaaId:"8534139",
+    petssId:"8534139",
+    minor:5.9, moderate:6.9, major:7.9,
+    link:"https://hondrospj.github.io/Tuckerton/",
+    lat:39.508889, lon:-74.324722
+  },
+  {
+    sheet:"USGS",
+    name:"Manahawkin Bay at Ship Bottom",
+    acronym:"SBTN4",
+    usgsId:"01409146",
+    noaaId:"8533905",
+    petssId:"8533935",
+    minor:5.8, moderate:6.8, major:7.8,
+    link:"https://hondrospj.github.io/ShipBottom/",
+    lat:39.654167, lon:-74.185833
+  },
+  {
+    sheet:"USGS",
+    name:"Barnegat Bay at Waretown",
+    acronym:"WATN4",
+    usgsId:"01409124",
+    noaaId:"8533541",
+    petssId:"8533541",
+    minor:5.8, moderate:6.8, major:7.8,
+    link:"https://hondrospj.github.io/Waretown/",
+    lat:39.770000, lon:-74.188333
+  },
+  {
+    sheet:"USGS",
+    name:"Barnegat Bay at Barnegat Light",
+    acronym:"BGLN4",
+    usgsId:"01409125",
+    noaaId:"8533615",
+    petssId:"8533615",
+    minor:5.8, moderate:6.8, major:7.8,
+    link:"https://hondrospj.github.io/BarnegatLight/",
+    lat:39.760833, lon:-74.110556
+  },
+  {
+    sheet:"USGS",
+    name:"Barnegat Bay at Seaside Heights",
+    acronym:"BASN5",
+    usgsId:"01408748",
+    noaaId:"8533071",
+    petssId:"est0006",
+    minor:5.6, moderate:6.6, major:7.6,
+    link:"https://hondrospj.github.io/SeasideHeights/",
+    lat:39.941389, lon:-74.083889
+  },
+  {
+    sheet:"USGS",
+    name:"Barnegat Bay at Mantoloking",
+    acronym:"MTLN4",
+    usgsId:"01408168",
+    noaaId:"8532786",
+    petssId:"8532786",
+    minor:5.9, moderate:6.9, major:7.9,
+    link:"https://hondrospj.github.io/Mantoloking/",
+    lat:40.040556, lon:-74.054444
+  },
+  {
+    sheet:"USGS",
+    name:"Watson Creek at Manasquan",
+    acronym:"MSNN4",
+    usgsId:"01408048",
+    noaaId:"8532591",
+    petssId:"8532591",
+    minor:6.0, moderate:7.0, major:8.0,
+    link:"https://hondrospj.github.io/Manasquan-/",
+    lat:40.111667, lon:-74.044722
+  },
+  {
+    sheet:"USGS",
+    name:"Shark River at Belmar",
+    acronym:"BLMN4",
+    usgsId:"01407770",
+    noaaId:"8532339",
+    petssId:"8532337",
+    minor:5.9, moderate:6.9, major:7.9,
+    link:"https://hondrospj.github.io/Belmar/",
+    lat:40.185556, lon:-74.026111
+  },
+  {
+    sheet:"USGS",
+    name:"Shrewsbury River at Sea Bright",
+    acronym:"SBIN4",
+    usgsId:"01407600",
+    noaaId:"8531592",
+    petssId:"8531804",
+    minor:6.1, moderate:7.1, major:8.1,
+    link:"https://hondrospj.github.io/SeaBright/",
+    lat:40.365556, lon:-73.974722
+  },
+  {
+    sheet:"USGS",
+    name:"Raritan Bay at Keansburg",
+    acronym:"KSBN4",
+    usgsId:"01407081",
+    noaaId:"8531545",
+    petssId:"8531592",
+    minor:6.2, moderate:7.2, major:8.2,
+    link:"https://hondrospj.github.io/Keansburg/",
+    lat:40.449167, lon:-74.147500
+  },
+  {
+    sheet:"USGS",
+    name:"Arthur Kill at Perth Amboy",
+    acronym:"PABN4",
+    usgsId:"01396060",
+    noaaId:"8531232",
+    petssId:"8531232",
+    minor:6.0, moderate:7.0, major:8.0,
+    link:"https://hondrospj.github.io/PerthAmboy/",
+    lat:40.503889, lon:-74.262222
+  },
+
+  // NOAA sheet
+  {
+    sheet:"NOAA",
+    name:"Cape May",
+    acronym:"CMAN4",
+    usgsId:null,
+    noaaId:"8536110",
+    petssId:"8536110",
+    minor:6.7, moderate:7.7, major:8.7,
+    link:"https://hondrospj.github.io/CapeMay/",
+    lat:38.968330, lon:-74.960000
+  },
+  {
+    sheet:"NOAA",
+    name:"Atlantic City",
+    acronym:"ACYN4",
+    usgsId:null,
+    noaaId:"8534720",
+    petssId:"8534720",
+    minor:6.0, moderate:7.0, major:8.0,
+    link:"https://hondrospj.github.io/Atlantic-City/",
+    lat:39.355000, lon:-74.418300
+  },
+  {
+    sheet:"NOAA",
+    name:"Sandy Hook",
+    acronym:"SDHN4",
+    usgsId:null,
+    noaaId:"8531680",
+    petssId:"8531680",
+    minor:6.7, moderate:7.6, major:8.7,
+    link:"https://hondrospj.github.io/Sandy-Hook/",
+    lat:40.466700, lon:-74.010000
+  },
+  {
+    sheet:"NOAA",
+    name:"Reedy Point",
+    acronym:"RDYD1",
+    usgsId:null,
+    noaaId:"8551910",
+    petssId:"8551910",
+    minor:7.2, moderate:8.2, major:9.2,
+    link:"https://hondrospj.github.io/Reedy-Point/",
+    lat:39.558333, lon:-75.573333
+  },
+  {
+    sheet:"NOAA",
+    name:"Delaware River (Washington Street)",
+    acronym:"PHBP1",
+    usgsId:null,
+    noaaId:"8545240",
+    petssId:"8545240",
+    minor:8.2, moderate:9.2, major:10.2,
+    link:"https://hondrospj.github.io/Delaware-River/",
+    lat:39.933300, lon:-75.141700
+  },
+  {
+    sheet:"NOAA",
+    name:"Burlington",
+    acronym:"BDRN4",
+    usgsId:null,
+    noaaId:"8539094",
+    petssId:"8539094",
+    minor:9.3, moderate:10.3, major:11.3,
+    link:"https://hondrospj.github.io/Burlington/",
+    lat:40.080000, lon:-74.873333
+  },
+  {
+    sheet:"NOAA",
+    name:"Marcus Hook",
+    acronym:"MRCP1",
+    usgsId:null,
+    noaaId:"8540433",
+    petssId:"8540433",
+    minor:7.7, moderate:8.7, major:9.7,
+    link:"https://hondrospj.github.io/MarcusHook/",
+    lat:39.811670, lon:-75.409440
+  },
+  {
+    sheet:"NOAA",
+    name:"Bergen Point",
+    acronym:"BGNN6",
+    usgsId:null,
+    noaaId:"8540433",
+    petssId:"8519483",
+    minor:7.2, moderate:8.5, major:9.6,
+    link:"https://hondrospj.github.io/BergenPoint/",
+    lat:40.636670, lon:-74.141670
+  },
+  {
+    sheet:"NOAA",
+    name:"Bridesburg",
+    acronym:"BDSP1",
+    usgsId:null,
+    noaaId:"8546252",
+    petssId:"8546252",
+    minor:8.5, moderate:9.5, major:10.5,
+    link:"https://hondrospj.github.io/Bridesburg/",
+    lat:39.983330, lon:-75.075000
+  },
+  {
+    sheet:"NOAA",
+    name:"Newbold Island",
+    acronym:"NBLP1",
+    usgsId:null,
+    noaaId:"8548989",
+    petssId:"8548989",
+    minor:8.8, moderate:9.8, major:10.8,
+    link:"https://hondrospj.github.io/Newbold-Island/",
+    lat:40.137310, lon:-74.751670
+  }
+];
+
+/* =========================
+   GLOBAL STATE
+========================= */
+let rows = [];
+let markerMap = new Map();
+let listSelection = null;
+
+const fmtFull = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/New_York",
+  year: "numeric",
+  month: "short",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true
+});
+
+function fmtET(iso){
+  if(!iso) return "—";
+  const d = new Date(iso);
+  return isNaN(d) ? "—" : fmtFull.format(d);
+}
+function fmtFt(v){
+  return Number.isFinite(v) ? `${v.toFixed(2)} ft` : "—";
+}
+function cleanId(v){
+  if(v === null || v === undefined) return null;
+  const s = String(v).replace(/\u00A0/g, " ").trim();
+  return s ? s : null;
+}
+function esc(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;");
+}
+function setStatus(msg){
+  document.getElementById("statusPill").textContent = msg;
+}
+function markerColorForRow(r){
+  if(!Number.isFinite(r.petssValue)) return "#64748b";
+  if(r.petssValue >= r.major) return "#fb7185";
+  if(r.petssValue >= r.moderate) return "#fb923c";
+  if(r.petssValue >= r.minor) return "#fbbf24";
+  return "#2dd4bf";
+}
+function stageLabel(r){
+  if(!Number.isFinite(r.petssValue)) return "No forecast loaded";
+  if(r.petssValue >= r.major) return "Major flood stage";
+  if(r.petssValue >= r.moderate) return "Moderate flood stage";
+  if(r.petssValue >= r.minor) return "Minor flood stage";
+  return "Below minor flood stage";
+}
+async function fetchJSON(url){
+  const res = await fetch(url, { cache:"no-store" });
+  if(!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+function toIsoFromNoaaTime(t){
+  return t ? new Date(t.replace(" ", "T") + "Z").toISOString() : null;
+}
+
+/* =========================
+   MAP
+========================= */
+const map = L.map("map", {
+  zoomControl:true
+}).setView([39.95, -74.65], 8);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 18,
+  attribution: "&copy; OpenStreetMap contributors"
+}).addTo(map);
+
+function createGaugeIcon(color){
+  return L.divIcon({
+    className: "",
+    html: `
+      <div style="
+        width:18px;height:18px;border-radius:999px;
+        background:${color};
+        border:2px solid rgba(255,255,255,.95);
+        box-shadow:0 0 0 3px rgba(0,0,0,.20);
+      "></div>
+    `,
+    iconSize:[18,18],
+    iconAnchor:[9,9],
+    popupAnchor:[0,-10]
+  });
+}
+
+function popupHtml(r){
+  const stage = stageLabel(r);
+  const color = markerColorForRow(r);
+
+  return `
+    <div class="popup">
+      <h3>${esc(r.name)}</h3>
+      <div class="muted">${esc(r.sheet)} sheet · ${esc(r.acronym || "—")}</div>
+
+      <div class="popupGrid">
+        <div class="popupBox">
+          <div class="k">Current height</div>
+          <div class="v">${esc(fmtFt(r.obsValue))}</div>
+        </div>
+        <div class="popupBox">
+          <div class="k">Obs time</div>
+          <div class="v">${esc(fmtET(r.obsTime))}</div>
+        </div>
+        <div class="popupBox">
+          <div class="k">72h max forecast</div>
+          <div class="v">${esc(fmtFt(r.petssValue))}</div>
+        </div>
+        <div class="popupBox">
+          <div class="k">Peak time</div>
+          <div class="v">${esc(fmtET(r.petssTime))}</div>
         </div>
       </div>
+
+      <div class="statusTag">
+        <span style="width:10px;height:10px;border-radius:999px;background:${color};display:inline-block"></span>
+        ${esc(stage)}
+      </div>
+
+      <div style="margin-top:10px;font-size:12px;color:#9fb0d1;line-height:1.45">
+        Obs source: <b>${esc(r.obsSource || "—")}</b><br>
+        PETSS ID: <b>${esc(r.petssId || "—")}</b><br>
+        Minor / Moderate / Major: <b>${esc(fmtFt(r.minor))}</b> / <b>${esc(fmtFt(r.moderate))}</b> / <b>${esc(fmtFt(r.major))}</b>
+      </div>
+
+      ${
+        r.link
+        ? `<div style="margin-top:10px"><a href="${esc(r.link)}" target="_blank" rel="noopener noreferrer" style="color:#60a5fa;font-weight:800">Open gauge page</a></div>`
+        : ``
+      }
     </div>
-  </div>
+  `;
+}
 
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    crossorigin=""
-  ></script>
+function buildMarkers(filteredRows){
+  markerMap.forEach(marker => map.removeLayer(marker));
+  markerMap.clear();
 
-  <script>
-    const APP_NAME = "PJ_Tide_Map";
-    const NOAA_DATUM = "MLLW";
-    const NOAA_UNITS = "english";
-    const NOAA_TZ = "gmt";
-    const USGS_PARAM = "72279";
-    const REFRESH_MS = 5 * 60 * 1000;
+  const bounds = [];
 
-    /*
-      Gauge list restricted to worksheet rows only.
-      Coordinates are provided for mapping.
-      For USGS-sheet rows:
-        - use USGS obs if usgsId exists
-        - otherwise fall back to NOAA obs
-      For NOAA-sheet rows:
-        - use NOAA obs
-      Forecast:
-        - use PETSS Forecast ID
-    */
-    const GAUGES = [
-      { sheet:"USGS", name:"Cohancey River at Greenwich", acronym:"GRWN4", usgsId:"01413038", noaaId:"8537374", petssId:"8537374", link:"https://hondrospj.github.io/Greenwich/", lat:39.379167, lon:-75.355278 },
-      { sheet:"USGS", name:"Maurice River at Bivalve", acronym:"BVVN4", usgsId:null, noaaId:"8535055", petssId:"8536889", link:"https://hondrospj.github.io/Bivalve/", lat:39.232500, lon:-75.032778 },
-      { sheet:"USGS", name:"Sluice Creek at South Dennis", acronym:"SDNN4", usgsId:"01411435", noaaId:"8536687", petssId:"est0008", link:"https://hondrospj.github.io/SouthDennis/", lat:39.161667, lon:-74.832222 },
-      { sheet:"USGS", name:"Cape May Harbor at Cape May", acronym:"CAPN4", usgsId:"01411390", noaaId:"8536110", petssId:"8535901", link:"https://hondrospj.github.io/CapeMayHarbor/", lat:38.948333, lon:-74.888889 },
-      { sheet:"USGS", name:"Great Channel at Stone Harbor", acronym:"SHBN4", usgsId:null, noaaId:"8535581", petssId:"8535581", link:"https://hondrospj.github.io/StoneHarbor/", lat:39.056944, lon:-74.765000 },
-      { sheet:"USGS", name:"Ingram Thorofare at Avalon", acronym:"AVLN4", usgsId:"01411355", noaaId:"8535419", petssId:"8535419", link:"https://hondrospj.github.io/Avalon/", lat:39.108611, lon:-74.741944 },
-      { sheet:"USGS", name:"Ludlum Thorofare at Sea Isle", acronym:"SICN4", usgsId:"01411350", noaaId:"8535221", petssId:"8535221", link:"https://hondrospj.github.io/SeaIsle/", lat:39.157778, lon:-74.697778 },
-      { sheet:"USGS", name:"Great Egg Harbor Bay at Ocean City", acronym:"ONCN4", usgsId:"01411320", noaaId:"8534975", petssId:"8534975", link:"https://hondrospj.github.io/OceanCity/", lat:39.285833, lon:-74.575556 },
-      { sheet:"USGS", name:"Beach Thorofare at Margate", acronym:"MGTN4", usgsId:"01411330", noaaId:"8534975", petssId:"8534836", link:"https://hondrospj.github.io/Margate/", lat:39.337500, lon:-74.513056 },
-      { sheet:"USGS", name:"Inside Thorofare at Atlantic City", acronym:"ALCN4", usgsId:"01410560", noaaId:"8534720", petssId:"est4836", link:"https://hondrospj.github.io/InsideThorofare/", lat:39.353611, lon:-74.456944 },
-      { sheet:"USGS", name:"Absecon Channel at Atlantic City", acronym:"ATLN4", usgsId:"01410600", noaaId:"8534720", petssId:"8534638", link:"https://hondrospj.github.io/AbseconChannel/", lat:39.377778, lon:-74.423611 },
-      { sheet:"USGS", name:"Little Egg Inlet at Tuckerton", acronym:"TKTN4", usgsId:"01409335", noaaId:"8534139", petssId:"8534139", link:"https://hondrospj.github.io/Tuckerton/", lat:39.508889, lon:-74.324722 },
-      { sheet:"USGS", name:"Manahawkin Bay at Ship Bottom", acronym:"SBTN4", usgsId:"01409146", noaaId:"8533905", petssId:"8533935", link:"https://hondrospj.github.io/ShipBottom/", lat:39.654167, lon:-74.185833 },
-      { sheet:"USGS", name:"Barnegat Bay at Waretown", acronym:"WATN4", usgsId:"01409124", noaaId:"8533541", petssId:"8533541", link:"https://hondrospj.github.io/Waretown/", lat:39.770000, lon:-74.188333 },
-      { sheet:"USGS", name:"Barnegat Bay at Barnegat Light", acronym:"BGLN4", usgsId:"01409125", noaaId:"8533615", petssId:"8533615", link:"https://hondrospj.github.io/BarnegatLight/", lat:39.760833, lon:-74.110556 },
-      { sheet:"USGS", name:"Barnegat Bay at Seaside Heights", acronym:"BASN5", usgsId:"01408748", noaaId:"8533071", petssId:"est0006", link:"https://hondrospj.github.io/SeasideHeights/", lat:39.941389, lon:-74.083889 },
-      { sheet:"USGS", name:"Barnegat Bay at Mantoloking", acronym:"MTLN4", usgsId:"01408168", noaaId:"8532786", petssId:"8532786", link:"https://hondrospj.github.io/Mantoloking/", lat:40.040556, lon:-74.054444 },
-      { sheet:"USGS", name:"Watson Creek at Manasquan", acronym:"MSNN4", usgsId:"01408048", noaaId:"8532591", petssId:"8532591", link:"https://hondrospj.github.io/Manasquan-/", lat:40.111667, lon:-74.044722 },
-      { sheet:"USGS", name:"Shark River at Belmar", acronym:"BLMN4", usgsId:"01407770", noaaId:"8532339", petssId:"8532337", link:"https://hondrospj.github.io/Belmar/", lat:40.185556, lon:-74.026111 },
-      { sheet:"USGS", name:"Shrewsbury River at Sea Bright", acronym:"SBIN4", usgsId:"01407600", noaaId:"8531592", petssId:"8531804", link:"https://hondrospj.github.io/SeaBright/", lat:40.365556, lon:-73.974722 },
-      { sheet:"USGS", name:"Raritan Bay at Keansburg", acronym:"KSBN4", usgsId:"01407081", noaaId:"8531545", petssId:"8531592", link:"https://hondrospj.github.io/Keansburg/", lat:40.449167, lon:-74.147500 },
-      { sheet:"USGS", name:"Arthur Kill at Perth Amboy", acronym:"PABN4", usgsId:"01396060", noaaId:"8531232", petssId:"8531232", link:"https://hondrospj.github.io/PerthAmboy/", lat:40.503889, lon:-74.262222 },
+  filteredRows.forEach(r => {
+    if(!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return;
 
-      { sheet:"NOAA", name:"Cape May", acronym:"CMAN4", usgsId:null, noaaId:"8536110", petssId:"8536110", link:"https://hondrospj.github.io/CapeMay/", lat:38.968330, lon:-74.960000 },
-      { sheet:"NOAA", name:"Atlantic City", acronym:"ACYN4", usgsId:null, noaaId:"8534720", petssId:"8534720", link:"https://hondrospj.github.io/Atlantic-City/", lat:39.355000, lon:-74.418300 },
-      { sheet:"NOAA", name:"Sandy Hook", acronym:"SDHN4", usgsId:null, noaaId:"8531680", petssId:"8531680", link:"https://hondrospj.github.io/Sandy-Hook/", lat:40.466700, lon:-74.010000 },
-      { sheet:"NOAA", name:"Reedy Point", acronym:"RDYD1", usgsId:null, noaaId:"8551910", petssId:"8551910", link:"https://hondrospj.github.io/Reedy-Point/", lat:39.558333, lon:-75.573333 },
-      { sheet:"NOAA", name:"Delaware River (Washington Street)", acronym:"PHBP1", usgsId:null, noaaId:"8545240", petssId:"8545240", link:"https://hondrospj.github.io/Delaware-River/", lat:39.933300, lon:-75.141700 },
-      { sheet:"NOAA", name:"Burlington", acronym:"BDRN4", usgsId:null, noaaId:"8539094", petssId:"8539094", link:"https://hondrospj.github.io/Burlington/", lat:40.080000, lon:-74.873333 },
-      { sheet:"NOAA", name:"Marcus Hook", acronym:"MRCP1", usgsId:null, noaaId:"8540433", petssId:"8540433", link:"https://hondrospj.github.io/MarcusHook/", lat:39.811670, lon:-75.409440 },
-      { sheet:"NOAA", name:"Bergen Point", acronym:"BGNN6", usgsId:null, noaaId:"8540433", petssId:"8519483", link:"https://hondrospj.github.io/BergenPoint/", lat:40.636670, lon:-74.141670 },
-      { sheet:"NOAA", name:"Bridesburg", acronym:"BDSP1", usgsId:null, noaaId:"8546252", petssId:"8546252", link:"https://hondrospj.github.io/Bridesburg/", lat:39.983330, lon:-75.075000 },
-      { sheet:"NOAA", name:"Newbold Island", acronym:"NBLP1", usgsId:null, noaaId:"8548989", petssId:"8548989", link:"https://hondrospj.github.io/Newbold-Island/", lat:40.137310, lon:-74.751670 }
-    ];
+    const marker = L.marker([r.lat, r.lon], {
+      icon: createGaugeIcon(markerColorForRow(r))
+    }).addTo(map);
 
-    let map;
-    let markersLayer;
-    let rows = [];
+    marker.bindPopup(popupHtml(r), { maxWidth: 320 });
 
-    const fmtFull = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true
+    marker.on("click", () => {
+      listSelection = r.name;
+      renderList();
     });
 
-    function fmtET(iso){
-      if(!iso) return "—";
-      const d = new Date(iso);
-      return isNaN(d) ? "—" : fmtFull.format(d);
+    markerMap.set(r.name, marker);
+    bounds.push([r.lat, r.lon]);
+  });
+
+  if(bounds.length){
+    map.fitBounds(bounds, { padding:[30,30] });
+  }
+}
+
+/* =========================
+   LIVE OBS
+========================= */
+async function fetchNOAALatest(noaaId){
+  const station = cleanId(noaaId);
+  if(!station) return { value:null, time:null, source:"NOAA" };
+
+  const url =
+    `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter` +
+    `?date=latest` +
+    `&station=${encodeURIComponent(station)}` +
+    `&product=water_level` +
+    `&datum=${NOAA_DATUM}` +
+    `&time_zone=${NOAA_TZ}` +
+    `&units=${NOAA_UNITS}` +
+    `&application=${encodeURIComponent(APP_NAME)}` +
+    `&format=json`;
+
+  const json = await fetchJSON(url);
+  const arr = json?.data || [];
+  if(!arr.length) return { value:null, time:null, source:"NOAA" };
+
+  const last = arr[arr.length - 1];
+  return {
+    value: Number(last?.v),
+    time: toIsoFromNoaaTime(last?.t),
+    source:"NOAA"
+  };
+}
+
+async function fetchUSGSBatch(siteIds){
+  const ids = siteIds.map(cleanId).filter(Boolean);
+  if(!ids.length) return new Map();
+
+  const url =
+    `https://waterservices.usgs.gov/nwis/iv/?format=json` +
+    `&sites=${ids.join(",")}` +
+    `&parameterCd=${USGS_PARAM}` +
+    `&siteStatus=all`;
+
+  const json = await fetchJSON(url);
+  const out = new Map();
+  const series = json?.value?.timeSeries || [];
+
+  for(const ts of series){
+    const siteCode = cleanId(ts?.sourceInfo?.siteCode?.[0]?.value);
+    const values = ts?.values?.[0]?.value || [];
+    if(!siteCode || !values.length) continue;
+
+    const last = values[values.length - 1];
+    out.set(siteCode, {
+      value: Number(last?.value),
+      time: last?.dateTime || null,
+      source:"USGS"
+    });
+  }
+  return out;
+}
+
+/* =========================
+   PETSS JSON
+========================= */
+function normalizePetssJsonToPoints(json){
+  const candidates = [];
+
+  if(Array.isArray(json?.points)) candidates.push(...json.points);
+  else if(Array.isArray(json?.data)) candidates.push(...json.data);
+  else if(Array.isArray(json)) candidates.push(...json);
+  else if(Array.isArray(json?.forecast)) candidates.push(...json.forecast);
+
+  return candidates
+    .map(p => ({
+      t: p?.t ?? p?.time ?? p?.validTime ?? p?.datetime ?? null,
+      ft: Number(p?.fcst ?? p?.value ?? p?.twl ?? p?.primary ?? p?.surge ?? p?.height)
+    }))
+    .filter(p => p.t && Number.isFinite(p.ft))
+    .sort((a,b) => new Date(a.t) - new Date(b.t));
+}
+
+async function fetchFirstOkJson(candidates){
+  const errors = [];
+  for(const url of candidates){
+    try{
+      const json = await fetchJSON(`${url}?v=${Date.now()}`);
+      return { url, json };
+    }catch(err){
+      errors.push(`${url} (${err?.message || err})`);
     }
+  }
+  throw new Error(errors.join(" | "));
+}
 
-    function fmtFt(v){
-      return Number.isFinite(v) ? `${v.toFixed(2)} ft` : "—";
-    }
+async function fetchGaugePetss72hMax(petssId){
+  const id = cleanId(petssId);
+  if(!id) return { value:null, time:null, issuedTime:null, urlUsed:null };
 
-    function esc(s){
-      return String(s ?? "")
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;");
-    }
+  const candidates = [
+    `data/petss_forecast_${id}_mllw.json`,
+    `./data/petss_forecast_${id}_mllw.json`,
+    `/data/petss_forecast_${id}_mllw.json`,
+    `data/petss_forecast_${id}.json`,
+    `./data/petss_forecast_${id}.json`,
+    `/data/petss_forecast_${id}.json`,
+    `data/petss_${id}_mllw.json`,
+    `./data/petss_${id}_mllw.json`,
+    `/data/petss_${id}_mllw.json`
+  ];
 
-    function setStatus(msg){
-      document.getElementById("statusPill").textContent = msg;
-    }
+  const { url, json } = await fetchFirstOkJson(candidates);
 
-    function summaryClass(v){
-      if(!Number.isFinite(v)) return "#94a3b8";
-      if(v >= 8) return "#fb7185";
-      if(v >= 5) return "#fbbf24";
-      return "#2dd4bf";
-    }
+  const issuedTime =
+    json?.model_time_utc ||
+    json?.issued_utc ||
+    json?.fetched_utc ||
+    json?.issuedTime ||
+    null;
 
-    function makeDivIcon(color){
-      return L.divIcon({
-        className: "",
-        html: `
-          <div style="
-            width:18px;
-            height:18px;
-            border-radius:999px;
-            background:${color};
-            border:2px solid rgba(255,255,255,.95);
-            box-shadow:0 0 0 3px rgba(0,0,0,.24);
-          "></div>
-        `,
-        iconSize: [18,18],
-        iconAnchor: [9,9],
-        popupAnchor: [0,-10]
-      });
-    }
+  const points = normalizePetssJsonToPoints(json);
+  if(!points.length){
+    return { value:null, time:null, issuedTime, urlUsed:url };
+  }
 
-    async function fetchJSON(url){
-      const res = await fetch(url, { cache:"no-store" });
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    }
+  const now = Date.now();
+  const end = now + 72 * 3600 * 1000;
 
-    async function fetchNOAALatest(noaaId){
-      const url =
-        `https://api.tidesandcurrents.noaa.gov/api/prod/datagetter` +
-        `?date=latest` +
-        `&station=${encodeURIComponent(noaaId)}` +
-        `&product=water_level` +
-        `&datum=${NOAA_DATUM}` +
-        `&time_zone=${NOAA_TZ}` +
-        `&units=${NOAA_UNITS}` +
-        `&application=${encodeURIComponent(APP_NAME)}` +
-        `&format=json`;
+  const inWindow = points.filter(p => {
+    const t = new Date(p.t).getTime();
+    return Number.isFinite(t) && t >= now && t <= end;
+  });
 
-      const json = await fetchJSON(url);
-      const arr = json?.data || [];
-      if(!arr.length) return { value:null, time:null, source:"NOAA" };
+  const usable = inWindow.length ? inWindow : points;
 
-      const last = arr[arr.length - 1];
-      return {
-        value: Number(last?.v),
-        time: last?.t ? new Date(last.t.replace(" ", "T") + "Z").toISOString() : null,
-        source:"NOAA"
-      };
-    }
+  let maxPt = usable[0];
+  for(const p of usable){
+    if(p.ft > maxPt.ft) maxPt = p;
+  }
 
-    async function fetchUSGSBatch(siteIds){
-      if(!siteIds.length) return new Map();
+  return {
+    value: maxPt.ft,
+    time: maxPt.t,
+    issuedTime,
+    urlUsed:url
+  };
+}
 
-      const url =
-        `https://waterservices.usgs.gov/nwis/iv/?format=json` +
-        `&sites=${siteIds.join(",")}` +
-        `&parameterCd=${USGS_PARAM}` +
-        `&siteStatus=all`;
+/* =========================
+   LOAD ALL DATA
+========================= */
+async function loadPage(){
+  setStatus("Loading…");
 
-      const json = await fetchJSON(url);
-      const out = new Map();
-      const series = json?.value?.timeSeries || [];
+  try{
+    const usgsIds = GAUGES
+      .filter(g => g.sheet === "USGS" && cleanId(g.usgsId))
+      .map(g => cleanId(g.usgsId));
 
-      for(const ts of series){
-        const siteCode = ts?.sourceInfo?.siteCode?.[0]?.value || null;
-        const values = ts?.values?.[0]?.value || [];
-        if(!siteCode || !values.length) continue;
+    const noaaObsRows = GAUGES.filter(g => g.sheet === "NOAA" || !cleanId(g.usgsId));
 
-        const last = values[values.length - 1];
-        out.set(siteCode, {
-          value: Number(last?.value),
-          time: last?.dateTime || null,
-          source:"USGS"
-        });
-      }
-      return out;
-    }
+    const usgsPromise = fetchUSGSBatch(usgsIds);
 
-    function normalizePetssJsonToPoints(json){
-      if(Array.isArray(json?.points)){
-        return json.points
-          .map(p => ({ t: p.t ?? p.time ?? p.validTime, ft: Number(p.fcst ?? p.twl ?? p.value ?? p.primary) }))
-          .filter(p => p.t && Number.isFinite(p.ft))
-          .sort((a,b)=> new Date(a.t) - new Date(b.t));
-      }
-
-      if(Array.isArray(json)){
-        return json
-          .map(p => ({ t: p.t ?? p.time ?? p.validTime, ft: Number(p.fcst ?? p.twl ?? p.value ?? p.primary) }))
-          .filter(p => p.t && Number.isFinite(p.ft))
-          .sort((a,b)=> new Date(a.t) - new Date(b.t));
-      }
-
-      if(Array.isArray(json?.data)){
-        return json.data
-          .map(p => ({ t: p.t ?? p.time ?? p.validTime, ft: Number(p.fcst ?? p.twl ?? p.value ?? p.primary) }))
-          .filter(p => p.t && Number.isFinite(p.ft))
-          .sort((a,b)=> new Date(a.t) - new Date(b.t));
-      }
-
-      return [];
-    }
-
-    async function fetchFirstOkJson(candidates){
-      for(const url of candidates){
-        try{
-          const json = await fetchJSON(`${url}?v=${Date.now()}`);
-          return { url, json };
-        }catch(err){}
-      }
-      throw new Error("No PETSS JSON file found");
-    }
-
-    async function fetchGaugePetssMax(petssId){
-      const id = String(petssId).trim();
-
-      const candidates = [
-        `data/petss_forecast_${id}_mllw.json`,
-        `./data/petss_forecast_${id}_mllw.json`,
-        `/data/petss_forecast_${id}_mllw.json`,
-        `data/petss_forecast_${id}.json`,
-        `./data/petss_forecast_${id}.json`,
-        `/data/petss_forecast_${id}.json`
-      ];
-
-      const { json } = await fetchFirstOkJson(candidates);
-      const points = normalizePetssJsonToPoints(json);
-
-      if(!points.length){
-        return { value:null, time:null };
-      }
-
-      const now = Date.now();
-      const cutoff = now + 72 * 3600 * 1000;
-
-      const windowed = points.filter(p => {
-        const t = new Date(p.t).getTime();
-        return Number.isFinite(t) && t >= now && t <= cutoff;
-      });
-
-      const usePoints = windowed.length ? windowed : points;
-
-      let maxPt = usePoints[0];
-      for(const p of usePoints){
-        if(p.ft > maxPt.ft) maxPt = p;
-      }
-
-      return {
-        value: maxPt.ft,
-        time: maxPt.t
-      };
-    }
-
-    function buildPopupHTML(r){
-      const labelMode = document.getElementById("labelMode").value;
-      const title = labelMode === "acr" ? (r.acronym || r.name) : r.name;
-
-      return `
-        <div class="popup">
-          <h3>${esc(title)}</h3>
-          <div class="sub">
-            ${esc(r.sheet)} sheet · ${esc(r.acronym || "—")} · NOAA ${esc(r.noaaId || "—")} · USGS ${esc(r.usgsId || "—")}
-          </div>
-
-          <div class="popupGrid">
-            <div class="metric">
-              <div class="label">Current observed height</div>
-              <div class="value">${esc(fmtFt(r.obsValue))}</div>
-              <div class="time">
-                ${esc(fmtET(r.obsTime))}<br>
-                Source: ${esc(r.obsSource || "—")}
-              </div>
-            </div>
-
-            <div class="metric">
-              <div class="label">72-hour predicted maximum</div>
-              <div class="value">${esc(fmtFt(r.forecastMaxValue))}</div>
-              <div class="time">
-                ${esc(fmtET(r.forecastMaxTime))}<br>
-                PETSS ID: ${esc(r.petssId || "—")}
-              </div>
-            </div>
-          </div>
-
-          ${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noopener noreferrer">Open station page</a>` : ""}
-        </div>
-      `;
-    }
-
-    function initMap(){
-      map = L.map("map", {
-        zoomControl: true
-      }).setView([39.72, -74.72], 8);
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 18,
-        attribution: "&copy; OpenStreetMap contributors"
-      }).addTo(map);
-
-      markersLayer = L.layerGroup().addTo(map);
-    }
-
-    function updateSummary(){
-      document.getElementById("sumStations").textContent = String(GAUGES.length);
-      document.getElementById("sumUSGS").textContent = String(GAUGES.filter(g => g.sheet === "USGS").length);
-      document.getElementById("sumNOAA").textContent = String(GAUGES.filter(g => g.sheet === "NOAA").length);
-
-      const best = rows
-        .filter(r => Number.isFinite(r.forecastMaxValue))
-        .sort((a,b) => b.forecastMaxValue - a.forecastMaxValue)[0];
-
-      document.getElementById("sumTopForecast").textContent =
-        best ? `${best.forecastMaxValue.toFixed(2)} ft` : "—";
-    }
-
-    function renderMarkers(){
-      const q = document.getElementById("searchBox").value.trim().toLowerCase();
-      const sheetFilter = document.getElementById("sheetFilter").value;
-
-      const filtered = rows.filter(r => {
-        const text = [
-          r.name, r.acronym, r.sheet, r.noaaId || "", r.usgsId || "", r.petssId || ""
-        ].join(" ").toLowerCase();
-
-        const hitSearch = !q || text.includes(q);
-        const hitSheet = sheetFilter === "ALL" || r.sheet === sheetFilter;
-        return hitSearch && hitSheet;
-      });
-
-      markersLayer.clearLayers();
-
-      for(const r of filtered){
-        const marker = L.marker(
-          [r.lat, r.lon],
-          { icon: makeDivIcon(summaryClass(r.forecastMaxValue)) }
-        );
-
-        marker.bindPopup(buildPopupHTML(r), { maxWidth: 360 });
-        marker.addTo(markersLayer);
-      }
-
-      document.getElementById("visibleCount").textContent = `${filtered.length} markers shown`;
-
-      if(filtered.length){
-        const bounds = L.latLngBounds(filtered.map(r => [r.lat, r.lon]));
-        map.fitBounds(bounds.pad(0.12));
-      }
-    }
-
-    async function loadPage(){
-      setStatus("Loading live obs + PETSS…");
-
+    const noaaObsMap = new Map();
+    await Promise.all(noaaObsRows.map(async g => {
       try{
-        const usgsIds = GAUGES
-          .filter(g => g.sheet === "USGS" && g.usgsId)
-          .map(g => g.usgsId);
-
-        const usgsObsPromise = fetchUSGSBatch(usgsIds);
-
-        const noaaObsNeeded = GAUGES.filter(g => g.sheet === "NOAA" || (g.sheet === "USGS" && !g.usgsId));
-        const noaaObsMap = new Map();
-
-        await Promise.all(noaaObsNeeded.map(async g => {
-          try{
-            noaaObsMap.set(g.name, await fetchNOAALatest(g.noaaId));
-          }catch(err){
-            console.error("NOAA obs failed:", g.name, err);
-            noaaObsMap.set(g.name, { value:null, time:null, source:"NOAA" });
-          }
-        }));
-
-        const usgsObsMap = await usgsObsPromise;
-
-        const forecastMap = new Map();
-        await Promise.all(GAUGES.map(async g => {
-          try{
-            forecastMap.set(g.name, await fetchGaugePetssMax(g.petssId));
-          }catch(err){
-            console.error("PETSS forecast failed:", g.name, err);
-            forecastMap.set(g.name, { value:null, time:null });
-          }
-        }));
-
-        rows = GAUGES.map(g => {
-          let obs;
-          if(g.sheet === "USGS" && g.usgsId){
-            obs = usgsObsMap.get(g.usgsId) || { value:null, time:null, source:"USGS" };
-          } else {
-            obs = noaaObsMap.get(g.name) || { value:null, time:null, source:"NOAA" };
-          }
-
-          const fc = forecastMap.get(g.name) || { value:null, time:null };
-
-          return {
-            ...g,
-            obsValue: obs.value,
-            obsTime: obs.time,
-            obsSource: obs.source,
-            forecastMaxValue: fc.value,
-            forecastMaxTime: fc.time
-          };
-        });
-
-        document.getElementById("lastUpdated").textContent =
-          `Last updated: ${fmtET(new Date().toISOString())}`;
-
-        updateSummary();
-        renderMarkers();
-        setStatus("Live");
-      } catch(err){
-        console.error(err);
-        setStatus("Load failed");
+        noaaObsMap.set(g.name, await fetchNOAALatest(g.noaaId));
+      }catch(err){
+        console.error("NOAA obs failed:", g.name, err);
+        noaaObsMap.set(g.name, { value:null, time:null, source:"NOAA" });
       }
-    }
+    }));
 
-    document.getElementById("searchBox").addEventListener("input", renderMarkers);
-    document.getElementById("sheetFilter").addEventListener("change", renderMarkers);
-    document.getElementById("labelMode").addEventListener("change", renderMarkers);
-    document.getElementById("refreshBtn").addEventListener("click", loadPage);
+    const usgsObsMap = await usgsPromise;
 
-    initMap();
-    loadPage();
-    setInterval(loadPage, REFRESH_MS);
-  </script>
+    const petssMap = new Map();
+    await Promise.all(GAUGES.map(async g => {
+      try{
+        petssMap.set(g.name, await fetchGaugePetss72hMax(g.petssId));
+      }catch(err){
+        console.error("PETSS failed:", g.name, err);
+        petssMap.set(g.name, { value:null, time:null, issuedTime:null, urlUsed:null });
+      }
+    }));
+
+    rows = GAUGES.map(g => {
+      let obs;
+      if(g.sheet === "USGS" && cleanId(g.usgsId)){
+        obs = usgsObsMap.get(cleanId(g.usgsId)) || { value:null, time:null, source:"USGS" };
+      } else {
+        obs = noaaObsMap.get(g.name) || { value:null, time:null, source:"NOAA" };
+      }
+
+      const petss = petssMap.get(g.name) || { value:null, time:null, issuedTime:null, urlUsed:null };
+
+      return {
+        ...g,
+        obsValue: obs.value,
+        obsTime: obs.time,
+        obsSource: obs.source,
+        petssValue: petss.value,
+        petssTime: petss.time,
+        petssIssued: petss.issuedTime,
+        petssUrl: petss.urlUsed
+      };
+    });
+
+    document.getElementById("lastUpdated").textContent = `Last updated: ${fmtET(new Date().toISOString())}`;
+    setStatus("Live");
+    updateStats();
+    render();
+  } catch(err){
+    console.error(err);
+    setStatus("Load failed");
+    rows = [...GAUGES].map(g => ({
+      ...g,
+      obsValue:null, obsTime:null, obsSource:g.sheet === "USGS" && cleanId(g.usgsId) ? "USGS" : "NOAA",
+      petssValue:null, petssTime:null, petssIssued:null, petssUrl:null
+    }));
+    updateStats();
+    render();
+  }
+}
+
+/* =========================
+   FILTER + SORT
+========================= */
+function getFilteredRows(){
+  const q = document.getElementById("searchBox").value.trim().toLowerCase();
+  const sheetFilter = document.getElementById("sheetFilter").value;
+  const sortMode = document.getElementById("sortMode").value;
+
+  let filtered = rows.filter(r => {
+    const hay = [
+      r.name, r.acronym, r.sheet,
+      cleanId(r.usgsId) || "",
+      cleanId(r.noaaId) || "",
+      cleanId(r.petssId) || ""
+    ].join(" ").toLowerCase();
+
+    const hitQ = !q || hay.includes(q);
+    const hitSheet = sheetFilter === "ALL" || r.sheet === sheetFilter;
+    return hitQ && hitSheet;
+  });
+
+  filtered.sort((a,b) => {
+    if(sortMode === "name_asc") return a.name.localeCompare(b.name);
+    if(sortMode === "obs_desc") return (b.obsValue ?? -999) - (a.obsValue ?? -999);
+    return (b.petssValue ?? -999) - (a.petssValue ?? -999);
+  });
+
+  return filtered;
+}
+
+/* =========================
+   SIDEBAR LIST
+========================= */
+function renderList(){
+  const filtered = getFilteredRows();
+  const el = document.getElementById("gaugeList");
+
+  el.innerHTML = filtered.map(r => {
+    const isActive = listSelection === r.name;
+    return `
+      <div class="card ${isActive ? "active" : ""}" data-name="${esc(r.name)}">
+        <div class="cardTitle">${esc(r.name)}</div>
+        <div class="cardSub">${esc(r.sheet)} sheet · ${esc(r.acronym || "—")}</div>
+
+        <div class="miniGrid">
+          <div class="mini">
+            <div class="k">Current</div>
+            <div class="v">${esc(fmtFt(r.obsValue))}</div>
+          </div>
+          <div class="mini">
+            <div class="k">72h max</div>
+            <div class="v">${esc(fmtFt(r.petssValue))}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  el.querySelectorAll(".card").forEach(card => {
+    card.addEventListener("click", () => {
+      const name = card.getAttribute("data-name");
+      listSelection = name;
+      renderList();
+
+      const marker = markerMap.get(name);
+      if(marker){
+        map.setView(marker.getLatLng(), Math.max(map.getZoom(), 9), { animate:true });
+        marker.openPopup();
+      }
+    });
+  });
+}
+
+/* =========================
+   STATS + RENDER
+========================= */
+function updateStats(){
+  document.getElementById("statCount").textContent = String(rows.length);
+
+  const best = rows
+    .filter(r => Number.isFinite(r.petssValue))
+    .sort((a,b) => b.petssValue - a.petssValue)[0];
+
+  document.getElementById("statTop").textContent = best ? `${best.petssValue.toFixed(2)} ft` : "—";
+}
+
+function render(){
+  const filtered = getFilteredRows();
+  buildMarkers(filtered);
+  renderList();
+}
+
+/* =========================
+   EVENTS
+========================= */
+document.getElementById("searchBox").addEventListener("input", render);
+document.getElementById("sheetFilter").addEventListener("change", render);
+document.getElementById("sortMode").addEventListener("change", render);
+document.getElementById("refreshBtn").addEventListener("click", loadPage);
+
+loadPage();
+setInterval(loadPage, REFRESH_MS);
+</script>
 </body>
 </html>
