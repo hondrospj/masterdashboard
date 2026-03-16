@@ -710,8 +710,6 @@ function getPetss72hMax(allJson, petssId){
     return Number.isFinite(t) && t >= now && t <= end;
   });
 
-  // Do NOT fall back to all points.
-  // If nothing valid is in the next 72h, return null instead of garbage.
   if(!inWindow.length){
     return { value:null, time:null, issuedTime };
   }
