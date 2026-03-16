@@ -15,22 +15,12 @@ const STATIONS = [
   "8540433","8519483","8546252","8548989"
 ];
 
+// PETSS text products available in the live NOMADS dated folders
 const CYCLES = ["18", "12", "06", "00"];
+const PRODUCT_PATH = "e90.stormtide.east.txt"; // switch to e10 if you want the lower envelope
+const BASE_INDEX = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/";
 
-/*
-  NOAA documents PETSS East Coast text products as:
-  petss.tCCz.mean.stormtide.est.txt
-
-  We fetch from the HTTP-served NCO products location rather than the old ftp host.
-*/
-function buildCandidateUrls() {
-  return CYCLES.map(cycle => ({
-    cycle,
-    url: `https://www.nco.ncep.noaa.gov/pmb/products/petss/petss.t${cycle}z.mean.stormtide.est.txt`
-  }));
-}
-
-function fetchText(url, timeoutMs = 20000) {
+function getText(url, timeoutMs = 20000) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, { timeout: timeoutMs }, res => {
       if (res.statusCode !== 200) {
@@ -57,60 +47,78 @@ function isoFromParts(year, month, day, hour) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(hour).padStart(2, "0")}:00:00Z`;
 }
 
-function initStationMap() {
+function initStations() {
   return Object.fromEntries(STATIONS.map(id => [id, { points: [] }]));
 }
 
-function dedupeAndSort(points) {
-  const seen = new Map();
-
+function dedupeSort(points) {
+  const map = new Map();
   for (const p of points) {
-    if (!p || !p.t || !Number.isFinite(p.fcst)) continue;
-    seen.set(p.t, p.fcst);
+    if (p?.t && Number.isFinite(p?.fcst)) map.set(p.t, p.fcst);
   }
-
-  return [...seen.entries()]
+  return [...map.entries()]
     .map(([t, fcst]) => ({ t, fcst }))
     .sort((a, b) => new Date(a.t) - new Date(b.t));
 }
 
-function countPopulatedStations(stations) {
+function countPopulated(stations) {
   return Object.values(stations).filter(v => Array.isArray(v.points) && v.points.length > 0).length;
 }
 
+async function findLatestPetssDate() {
+  const html = await getText(BASE_INDEX);
+  const matches = [...html.matchAll(/petss\.(\d{8})\//g)].map(m => m[1]);
+  const unique = [...new Set(matches)].sort();
+  if (!unique.length) {
+    throw new Error("Could not find any petss.YYYYMMDD directories in NOMADS index.");
+  }
+  return unique[unique.length - 1];
+}
+
+async function fetchLatestWorkingText() {
+  const ymd = await findLatestPetssDate();
+
+  for (const cycle of CYCLES) {
+    const url = `${BASE_INDEX}petss.${ymd}/petss.t${cycle}z.${PRODUCT_PATH}`;
+    try {
+      const text = await getText(url);
+      if (text && text.length > 100) {
+        return { ymd, cycle, url, text };
+      }
+    } catch (err) {
+      console.log(`Missed ${url}: ${err.message}`);
+    }
+  }
+
+  throw new Error(`Could not fetch any PETSS text file for ${ymd}.`);
+}
+
 /*
-  Parser notes:
-  - PETSS station text is not a clean JSON or CSV format.
-  - We key off the exact PETSS station IDs in your workbook.
-  - Once a station ID is encountered, nearby lines are scanned for date/value patterns.
-  - Supported patterns include:
-      YYYY MM DD HH value
-      MM DD HH value
-      MM/DD HH value
-      repeated inline MM/DD HH value triplets
+  Heuristic parser for PETSS text.
+
+  It keys off your exact PETSS station IDs, then looks for nearby
+  month/day/hour/value patterns. This is resilient to spacing changes.
 */
 function parsePetssText(text, issuedUtc) {
-  const stations = initStationMap();
+  const stations = initStations();
   const lines = text.replace(/\r/g, "").split("\n");
-  const year = new Date(issuedUtc).getUTCFullYear();
+  const issuedYear = new Date(issuedUtc).getUTCFullYear();
 
   let currentStation = null;
 
   const fullPattern = /(\d{4})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(-?\d+(?:\.\d+)?)/g;
   const shortPattern = /(^|\s)(\d{1,2})[\/\-\s]+(\d{1,2})\s+(\d{1,2})\s+(-?\d+(?:\.\d+)?)(?=\s|$)/g;
+  const inlineTripletPattern = /(\d{1,2})\/(\d{1,2})\s+(\d{1,2})\s+(-?\d+(?:\.\d+)?)/g;
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
     if (!line) continue;
 
-    const stationMatch = STATIONS.find(id => line.toLowerCase().includes(id.toLowerCase()));
-    if (stationMatch) {
-      currentStation = stationMatch;
-    }
-
+    const foundStation = STATIONS.find(id => line.toLowerCase().includes(id.toLowerCase()));
+    if (foundStation) currentStation = foundStation;
     if (!currentStation) continue;
 
-    let matchedAny = false;
+    let matched = false;
 
     for (const m of line.matchAll(fullPattern)) {
       const yyyy = Number(m[1]);
@@ -124,11 +132,11 @@ function parsePetssText(text, issuedUtc) {
           t: isoFromParts(yyyy, month, day, hour),
           fcst
         });
-        matchedAny = true;
+        matched = true;
       }
     }
 
-    if (matchedAny) continue;
+    if (matched) continue;
 
     for (const m of line.matchAll(shortPattern)) {
       const month = Number(m[2]);
@@ -138,92 +146,62 @@ function parsePetssText(text, issuedUtc) {
 
       if (Number.isFinite(fcst)) {
         stations[currentStation].points.push({
-          t: isoFromParts(year, month, day, hour),
+          t: isoFromParts(issuedYear, month, day, hour),
           fcst
         });
-        matchedAny = true;
+        matched = true;
       }
     }
 
-    if (matchedAny) continue;
+    if (matched) continue;
 
-    // Handle inline repeating triplets like:
-    // 03/16 18 5.21 03/16 21 5.88 03/17 00 6.42
-    const inlineTriplets = [...line.matchAll(/(\d{1,2})\/(\d{1,2})\s+(\d{1,2})\s+(-?\d+(?:\.\d+)?)/g)];
-    if (inlineTriplets.length) {
-      for (const m of inlineTriplets) {
-        const month = Number(m[1]);
-        const day = Number(m[2]);
-        const hour = Number(m[3]);
-        const fcst = Number(m[4]);
+    for (const m of line.matchAll(inlineTripletPattern)) {
+      const month = Number(m[1]);
+      const day = Number(m[2]);
+      const hour = Number(m[3]);
+      const fcst = Number(m[4]);
 
-        if (Number.isFinite(fcst)) {
-          stations[currentStation].points.push({
-            t: isoFromParts(year, month, day, hour),
-            fcst
-          });
-        }
+      if (Number.isFinite(fcst)) {
+        stations[currentStation].points.push({
+          t: isoFromParts(issuedYear, month, day, hour),
+          fcst
+        });
       }
     }
   }
 
   for (const id of STATIONS) {
-    stations[id].points = dedupeAndSort(stations[id].points);
+    stations[id].points = dedupeSort(stations[id].points);
   }
 
   return stations;
 }
 
-async function fetchLatestWorkingProduct() {
-  const candidates = buildCandidateUrls();
-
-  for (const c of candidates) {
-    try {
-      const text = await fetchText(c.url);
-      if (!text || text.length < 100) continue;
-
-      const issuedUtc = new Date().toISOString();
-      const stations = parsePetssText(text, issuedUtc);
-      const populated = countPopulatedStations(stations);
-
-      console.log(`Tried ${c.url} -> populated ${populated}/${STATIONS.length}`);
-
-      if (populated > 0) {
-        return {
-          sourceUrl: c.url,
-          cycle: c.cycle,
-          issuedUtc,
-          stations
-        };
-      }
-    } catch (err) {
-      console.log(`Missed ${c.url}: ${err.message}`);
-    }
-  }
-
-  throw new Error("Could not fetch or parse any PETSS East Coast text product.");
-}
-
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
-  const result = await fetchLatestWorkingProduct();
+  const file = await fetchLatestWorkingText();
+  const issuedUtc = new Date().toISOString();
+  const stations = parsePetssText(file.text, issuedUtc);
+  const populated = countPopulated(stations);
 
   const output = {
-    issued_utc: result.issuedUtc,
-    source_url: result.sourceUrl,
-    cycle_utc: result.cycle,
-    stations: result.stations
+    issued_utc: issuedUtc,
+    source_url: file.url,
+    source_date_utc: file.ymd,
+    source_cycle_utc: file.cycle,
+    source_product: PRODUCT_PATH,
+    stations
   };
 
   fs.writeFileSync(OUT_FILE, JSON.stringify(output, null, 2) + "\n", "utf8");
 
-  const populated = countPopulatedStations(output.stations);
   console.log(`Wrote ${OUT_FILE}`);
+  console.log(`Source: ${file.url}`);
   console.log(`Populated stations: ${populated}/${STATIONS.length}`);
 
   if (populated === 0) {
-    process.exitCode = 1;
+    throw new Error("Fetched PETSS file, but parsed 0 populated stations.");
   }
 }
 
