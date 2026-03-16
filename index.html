@@ -654,8 +654,17 @@ function normalizePetssPoints(raw){
       t: p?.t ?? p?.time ?? p?.validTime ?? p?.datetime ?? null,
       ft: Number(p?.fcst ?? p?.value ?? p?.twl ?? p?.primary ?? p?.surge ?? p?.height)
     }))
-    .filter(p => p.t && Number.isFinite(p.ft))
-    .sort((a,b) => new Date(a.t) - new Date(b.t));
+    .filter(p => {
+      if(!p.t || !Number.isFinite(p.ft)) return false;
+      const ms = new Date(p.t).getTime();
+      if(!Number.isFinite(ms)) return false;
+
+      // last-resort sanity guard
+      if(p.ft < -20 || p.ft > 25) return false;
+
+      return true;
+    })
+    .sort((a,b) => new Date(a.t).getTime() - new Date(b.t).getTime());
 }
 
 async function fetchPetssAll(){
@@ -701,10 +710,14 @@ function getPetss72hMax(allJson, petssId){
     return Number.isFinite(t) && t >= now && t <= end;
   });
 
-  const usable = inWindow.length ? inWindow : points;
+  // Do NOT fall back to all points.
+  // If nothing valid is in the next 72h, return null instead of garbage.
+  if(!inWindow.length){
+    return { value:null, time:null, issuedTime };
+  }
 
-  let maxPt = usable[0];
-  for(const p of usable){
+  let maxPt = inWindow[0];
+  for(const p of inWindow){
     if(p.ft > maxPt.ft) maxPt = p;
   }
 
