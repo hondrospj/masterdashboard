@@ -21,9 +21,9 @@
       --muted:#9fb0d1;
       --line:rgba(255,255,255,.10);
       --ok:#2dd4bf;
-      --minor:#fbbf24;
-      --moderate:#fb923c;
-      --major:#fb7185;
+      --minor:#f59e0b;     /* orange */
+      --moderate:#ef4444;  /* red */
+      --major:#a855f7;     /* purple */
       --missing:#64748b;
       --accent:#60a5fa;
       --shadow:0 18px 50px rgba(0,0,0,.35);
@@ -118,22 +118,28 @@
       border:1px solid var(--line);
       background:rgba(255,255,255,.04);
       border-radius:16px;
-      padding:12px;
+      padding:18px 20px;
       box-shadow:var(--shadow);
+      min-height:148px;
+      display:flex;
+      flex-direction:column;
+      justify-content:flex-start;
     }
 
     .stat .k{
-      color:var(--muted);
-      font-size:11px;
+      color:#b8c7e6;
+      font-size:12px;
       text-transform:uppercase;
-      letter-spacing:.18px;
+      letter-spacing:.12em;
       font-weight:900;
     }
 
     .stat .v{
-      margin-top:8px;
-      font-size:24px;
+      margin-top:16px;
+      font-size:52px;
+      line-height:1;
       font-weight:900;
+      letter-spacing:-.02em;
     }
 
     .legend{
@@ -299,13 +305,6 @@
       font-weight:900;
     }
 
-    .footerNote{
-      margin-top:14px;
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.45;
-    }
-
     @media (max-width: 980px){
       .app{
         grid-template-columns:1fr;
@@ -314,6 +313,12 @@
       .sidebar{
         border-right:none;
         border-bottom:1px solid var(--line);
+      }
+      .stat{
+        min-height:130px;
+      }
+      .stat .v{
+        font-size:44px;
       }
     }
   </style>
@@ -324,9 +329,7 @@
     <h1 class="title">NJ Tide Gauge Map</h1>
     <p class="subtitle">
       Click a marker or gauge card to see the <b>current water level</b> and the
-      <b>predicted maximum over the next 72 hours</b>. Live observations come from the workbook source:
-      <b>USGS sheet → USGS obs</b>, <b>NOAA sheet → NOAA obs</b>. PETSS max values come from one repo file:
-      <b>data/petss_forecasts_all_mllw.json</b>.
+      <b>predicted maximum over the next 72 hours</b>.
     </p>
 
     <div class="pillRow">
@@ -357,19 +360,14 @@
 
     <div class="legend">
       <h3>Marker color = 72h forecast stage</h3>
-      <div class="legendRow"><span class="swatch" style="background:#2dd4bf"></span> Below minor</div>
-      <div class="legendRow"><span class="swatch" style="background:#fbbf24"></span> Minor</div>
-      <div class="legendRow"><span class="swatch" style="background:#fb923c"></span> Moderate</div>
-      <div class="legendRow"><span class="swatch" style="background:#fb7185"></span> Major</div>
-      <div class="legendRow"><span class="swatch" style="background:#64748b"></span> Missing PETSS</div>
+      <div class="legendRow"><span class="swatch" style="background:var(--ok)"></span> Below minor</div>
+      <div class="legendRow"><span class="swatch" style="background:var(--minor)"></span> Minor</div>
+      <div class="legendRow"><span class="swatch" style="background:var(--moderate)"></span> Moderate</div>
+      <div class="legendRow"><span class="swatch" style="background:var(--major)"></span> Major</div>
+      <div class="legendRow"><span class="swatch" style="background:var(--missing)"></span> Missing PETSS</div>
     </div>
 
     <div id="gaugeList" class="gaugeList"></div>
-
-    <div class="footerNote">
-      Put one PETSS file in your repo at:
-      <b>data/petss_forecasts_all_mllw.json</b>
-    </div>
   </aside>
 
   <main id="map"></main>
@@ -469,11 +467,11 @@ function toIsoFromNoaaTime(t){
   return t ? new Date(t.replace(" ", "T") + "Z").toISOString() : null;
 }
 function markerColorForRow(r){
-  if(!Number.isFinite(r.petssValue)) return "#64748b";
-  if(r.petssValue >= r.major) return "#fb7185";
-  if(r.petssValue >= r.moderate) return "#fb923c";
-  if(r.petssValue >= r.minor) return "#fbbf24";
-  return "#2dd4bf";
+  if(!Number.isFinite(r.petssValue)) return getComputedStyle(document.documentElement).getPropertyValue("--missing").trim();
+  if(r.petssValue >= r.major) return getComputedStyle(document.documentElement).getPropertyValue("--major").trim();
+  if(r.petssValue >= r.moderate) return getComputedStyle(document.documentElement).getPropertyValue("--moderate").trim();
+  if(r.petssValue >= r.minor) return getComputedStyle(document.documentElement).getPropertyValue("--minor").trim();
+  return getComputedStyle(document.documentElement).getPropertyValue("--ok").trim();
 }
 function stageLabel(r){
   if(!Number.isFinite(r.petssValue)) return "No PETSS forecast loaded";
@@ -518,7 +516,7 @@ function popupHtml(r){
   return `
     <div class="popup">
       <h3>${esc(r.name)}</h3>
-      <div class="muted">${esc(r.sheet)} sheet · ${esc(r.acronym || "—")}</div>
+      <div class="muted">${esc(r.acronym || "—")}</div>
 
       <div class="popupGrid">
         <div class="popupBox">
@@ -545,7 +543,6 @@ function popupHtml(r){
       </div>
 
       <div style="margin-top:10px;font-size:12px;color:#9fb0d1;line-height:1.45">
-        Obs source: <b>${esc(r.obsSource || "—")}</b><br>
         PETSS ID: <b>${esc(r.petssId || "—")}</b><br>
         Minor / Moderate / Major: <b>${esc(fmtFt(r.minor))}</b> / <b>${esc(fmtFt(r.moderate))}</b> / <b>${esc(fmtFt(r.major))}</b>
       </div>
@@ -652,16 +649,13 @@ function normalizePetssPoints(raw){
   return arr
     .map(p => ({
       t: p?.t ?? p?.time ?? p?.validTime ?? p?.datetime ?? null,
-      ft: Number(p?.fcst ?? p?.value ?? p?.twl ?? p?.primary ?? p?.surge ?? p?.height)
+      ft: Number(p?.fcst ?? p?.value ?? p?.twl ?? p?.primary ?? p?.height)
     }))
     .filter(p => {
       if(!p.t || !Number.isFinite(p.ft)) return false;
       const ms = new Date(p.t).getTime();
       if(!Number.isFinite(ms)) return false;
-
-      // last-resort sanity guard
       if(p.ft < -20 || p.ft > 25) return false;
-
       return true;
     })
     .sort((a,b) => new Date(a.t).getTime() - new Date(b.t).getTime());
@@ -827,7 +821,7 @@ function renderList(){
     return `
       <div class="card ${isActive ? "active" : ""}" data-name="${esc(r.name)}">
         <div class="cardTitle">${esc(r.name)}</div>
-        <div class="cardSub">${esc(r.sheet)} sheet · ${esc(r.acronym || "—")}</div>
+        <div class="cardSub">${esc(r.acronym || "—")}</div>
 
         <div class="miniGrid">
           <div class="mini">
