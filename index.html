@@ -107,40 +107,6 @@
 
     .btn:hover{filter:brightness(1.06)}
 
-    .stats{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-      margin-bottom:14px;
-    }
-
-    .stat{
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      border-radius:16px;
-      padding:18px 20px;
-      box-shadow:var(--shadow);
-      min-height:148px;
-      display:flex;
-      flex-direction:column;
-      justify-content:flex-start;
-    }
-
-    .stat .k{
-      color:#b8c7e6;
-      font-size:12px;
-      text-transform:uppercase;
-      letter-spacing:.12em;
-      font-weight:900;
-    }
-
-    .stat .v{
-      margin-top:16px;
-      font-size:52px;
-      line-height:1;
-      font-weight:900;
-      letter-spacing:-.02em;
-    }
 
     .legend{
       border:1px solid var(--line);
@@ -314,12 +280,7 @@
         border-right:none;
         border-bottom:1px solid var(--line);
       }
-      .stat{
-        min-height:130px;
-      }
-      .stat .v{
-        font-size:44px;
-      }
+     
     }
   </style>
 </head>
@@ -345,17 +306,6 @@
         <option value="name_asc">Sort A–Z</option>
       </select>
       <button id="refreshBtn" class="btn">Refresh</button>
-    </div>
-
-    <div class="stats">
-      <div class="stat">
-        <div class="k">Workbook gauges</div>
-        <div class="v" id="statCount">—</div>
-      </div>
-      <div class="stat">
-        <div class="k">Highest 72h max</div>
-        <div class="v" id="statTop">—</div>
-      </div>
     </div>
 
     <div class="legend">
@@ -769,7 +719,6 @@ async function loadPage(){
 
     document.getElementById("lastUpdated").textContent = `Last updated: ${fmtET(new Date().toISOString())}`;
     setStatus("Live");
-    updateStats();
     render();
   } catch(err){
     console.error(err);
@@ -783,7 +732,6 @@ async function loadPage(){
       petssTime:null,
       petssIssued:null
     }));
-    updateStats();
     render();
   }
 }
@@ -852,15 +800,6 @@ function renderList(){
   });
 }
 
-function updateStats(){
-  document.getElementById("statCount").textContent = String(rows.length);
-
-  const best = rows
-    .filter(r => Number.isFinite(r.petssValue))
-    .sort((a,b) => b.petssValue - a.petssValue)[0];
-
-  document.getElementById("statTop").textContent = best ? `${best.petssValue.toFixed(2)} ft` : "—";
-}
 
 function render(){
   const filtered = getFilteredRows();
