@@ -8,7 +8,7 @@ on:
 permissions:
   contents: write
 
-jobs:
+jobs:c
   build-petss:
     runs-on: ubuntu-latest
 
